@@ -13,6 +13,7 @@ from app.schemas.document import (
 )
 from app.schemas.service import NearbyOffice, ServiceCategory
 from app.schemas.user import ChatMessageRequest, ChatMessageResponse, ChatSessionResponse, MessageResponse
+from app.schemas.voice import VoiceSynthesizeRequest, VoiceSynthesizeResponse, VoiceTranscribeResponse
 
 __all__ = [
     "LoginRequest",
@@ -33,4 +34,7 @@ __all__ = [
     "ChatMessageResponse",
     "ChatSessionResponse",
     "MessageResponse",
+    "VoiceSynthesizeRequest",
+    "VoiceSynthesizeResponse",
+    "VoiceTranscribeResponse",
 ]
