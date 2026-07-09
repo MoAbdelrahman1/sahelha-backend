@@ -1,10 +1,18 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 DB_PATH = BASE_DIR / "sahelha.db"
+UPLOAD_DIR = BASE_DIR / "uploads"
+
+# python-jose/passlib aren't installed in every dev environment here, so auth
+# is implemented with stdlib hmac (see app/core/security.py) — no new deps.
+SECRET_KEY = os.getenv("SECRET_KEY", "sahelha-dev-secret-change-in-production")
+ACCESS_TOKEN_EXPIRE_HOURS = int(os.getenv("ACCESS_TOKEN_EXPIRE_HOURS", "24"))
+REFRESH_TOKEN_EXPIRE_DAYS = int(os.getenv("REFRESH_TOKEN_EXPIRE_DAYS", "30"))
 
 SERVICE_SEED = [
     {"id": 1, "name_ar": "بطاقة الرقم القومي", "icon_emoji": "🪪", "icon_url": None},
