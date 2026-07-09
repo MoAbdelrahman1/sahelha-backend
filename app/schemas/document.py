@@ -49,3 +49,25 @@ class DocumentUploadRequest(BaseModel):
     service_id: int
     user_id: int | None
     fields: list[dict[str, str]] = []
+
+
+class DocumentUploadResponse(BaseModel):
+    doc_id: int
+    status: str
+    message: str
+
+
+class UserDocumentResponse(BaseModel):
+    """Document shape for the authenticated /api/documents pipeline (OCR + Groq)."""
+
+    id: int
+    status: str
+    doc_type: str | None
+    ai_summary: str | None
+    ocr_text: str | None
+    dates: list[str] = []
+    amounts: list[str] = []
+    expiry_date: str | None = None
+    tags: list[str] = []
+    image_url: str | None
+    created_at: str

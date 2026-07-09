@@ -3,10 +3,10 @@ from __future__ import annotations
 import sqlite3
 from typing import Any
 
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from fastapi.responses import Response
 
-from app.db import db_connection, init_db
+from app.db import db_connection
 from app.schemas import ChatMessageRequest, ChatMessageResponse, DocumentAnalyzeResponse, NearbyOffice, ReadDocumentResponse, ServiceCategory
 from app.services import (
     extract_document_fields,
@@ -22,119 +22,15 @@ from app.services import (
     summarize_document,
 )
 
-
-app = FastAPI(title="Sahelha Backend", version="0.1.0")
-
-SCHEMA_SQL = """
-CREATE TABLE IF NOT EXISTS chat_sessions (
-    id TEXT PRIMARY KEY,
-    created_at TEXT NOT NULL,
-    last_message_at TEXT NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS chat_messages (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    session_id TEXT NOT NULL,
-    role TEXT NOT NULL,
-    content TEXT NOT NULL,
-    audio_url TEXT,
-    created_at TEXT NOT NULL,
-    FOREIGN KEY (session_id) REFERENCES chat_sessions (id) ON DELETE CASCADE
-);
-
-CREATE TABLE IF NOT EXISTS documents (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    session_id TEXT,
-    original_name TEXT,
-    mime_type TEXT,
-    document_type TEXT NOT NULL,
-    summary_arabic TEXT NOT NULL,
-    raw_text TEXT,
-    created_at TEXT NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS document_fields (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    document_id INTEGER NOT NULL,
-    field_key TEXT NOT NULL,
-    field_label_ar TEXT NOT NULL,
-    field_value TEXT NOT NULL,
-    FOREIGN KEY (document_id) REFERENCES documents (id) ON DELETE CASCADE
-);
-
-CREATE TABLE IF NOT EXISTS audio_assets (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    cache_key TEXT NOT NULL UNIQUE,
-    text_hash TEXT NOT NULL,
-    provider TEXT NOT NULL,
-    language TEXT NOT NULL,
-    content_type TEXT NOT NULL,
-    audio_blob BLOB NOT NULL,
-    created_at TEXT NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS service_categories (
-    id INTEGER PRIMARY KEY,
-    name_ar TEXT NOT NULL,
-    icon_emoji TEXT NOT NULL,
-    icon_url TEXT
-);
-
-CREATE TABLE IF NOT EXISTS service_requirements (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    service_id INTEGER NOT NULL,
-    item_order INTEGER NOT NULL,
-    document_text_ar TEXT NOT NULL,
-    FOREIGN KEY (service_id) REFERENCES service_categories (id) ON DELETE CASCADE
-);
-
-CREATE TABLE IF NOT EXISTS service_steps (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    service_id INTEGER NOT NULL,
-    step_order INTEGER NOT NULL,
-    icon TEXT NOT NULL,
-    text_ar TEXT NOT NULL,
-    audio_url TEXT,
-    FOREIGN KEY (service_id) REFERENCES service_categories (id) ON DELETE CASCADE
-);
-
-CREATE TABLE IF NOT EXISTS offices (
-    id INTEGER PRIMARY KEY,
-    name_ar TEXT NOT NULL,
-    address_ar TEXT NOT NULL,
-    lat REAL NOT NULL,
-    lng REAL NOT NULL,
-    hours TEXT NOT NULL,
-    phone TEXT NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS office_services (
-    office_id INTEGER NOT NULL,
-    service_id INTEGER NOT NULL,
-    PRIMARY KEY (office_id, service_id),
-    FOREIGN KEY (office_id) REFERENCES offices (id) ON DELETE CASCADE,
-    FOREIGN KEY (service_id) REFERENCES service_categories (id) ON DELETE CASCADE
-);
-
-CREATE TABLE IF NOT EXISTS api_request_cache (
-    cache_key TEXT PRIMARY KEY,
-    response_json TEXT NOT NULL,
-    created_at TEXT NOT NULL
-);
-"""
+router = APIRouter()
 
 
-@app.on_event("startup")
-def startup_event() -> None:
-    init_db(SCHEMA_SQL)
-
-
-@app.get("/health")
+@router.get("/health")
 def health_check() -> dict[str, str]:
     return {"status": "ok"}
 
 
-@app.get("/api/ready")
+@router.get("/api/ready")
 def readiness_check() -> dict[str, Any]:
     try:
         with db_connection() as connection:
@@ -144,7 +40,7 @@ def readiness_check() -> dict[str, Any]:
         raise HTTPException(status_code=503, detail={"status": "not_ready", "database": str(exc)}) from exc
 
 
-@app.get("/api/services", response_model=list[ServiceCategory])
+@router.get("/api/services", response_model=list[ServiceCategory])
 def list_services() -> list[dict[str, Any]]:
     with db_connection() as connection:
         rows = connection.execute(
@@ -153,7 +49,7 @@ def list_services() -> list[dict[str, Any]]:
     return [row_to_dict(row) for row in rows]
 
 
-@app.get("/api/services/{service_id}/steps", response_model=dict[str, Any])
+@router.get("/api/services/{service_id}/steps", response_model=dict[str, Any])
 def get_service_steps(service_id: int) -> dict[str, Any]:
     with db_connection() as connection:
         service_row = connection.execute(
@@ -192,7 +88,7 @@ def get_service_steps(service_id: int) -> dict[str, Any]:
     }
 
 
-@app.get("/api/offices/nearby", response_model=list[NearbyOffice])
+@router.get("/api/offices/nearby", response_model=list[NearbyOffice])
 def nearby_offices(lat: float, lng: float, service_id: int | None = None) -> list[dict[str, Any]]:
     with db_connection() as connection:
         if service_id is None:
@@ -224,7 +120,7 @@ def nearby_offices(lat: float, lng: float, service_id: int | None = None) -> lis
     return offices
 
 
-@app.post("/api/document/analyze", response_model=DocumentAnalyzeResponse)
+@router.post("/api/document/analyze", response_model=DocumentAnalyzeResponse)
 async def analyze_document(
     text: str | None = Form(default=None),
     session_id: str | None = Form(default=None),
@@ -256,13 +152,13 @@ async def analyze_document(
     }
 
 
-@app.post("/api/document/read", response_model=ReadDocumentResponse)
+@router.post("/api/document/read", response_model=ReadDocumentResponse)
 def read_document(text: str = Form(...), language: str = Form(default="ar")) -> dict[str, Any]:
     cache_key = get_or_create_audio_asset(text=text, language=language)
     return {"text": text, "audio_url": f"/api/audio/{cache_key}", "cached": True}
 
 
-@app.get("/api/audio/{cache_key}")
+@router.get("/api/audio/{cache_key}")
 def get_audio(cache_key: str) -> Response:
     with db_connection() as connection:
         row = connection.execute(
@@ -276,7 +172,7 @@ def get_audio(cache_key: str) -> Response:
     return Response(content=row["audio_blob"], media_type=row["content_type"])
 
 
-@app.post("/api/chat/message", response_model=ChatMessageResponse)
+@router.post("/api/chat/message", response_model=ChatMessageResponse)
 def chat_message(payload: ChatMessageRequest) -> dict[str, Any]:
     session_id = get_or_create_session(payload.session_id)
     store_chat_message(session_id, "user", payload.message)
@@ -295,7 +191,7 @@ def chat_message(payload: ChatMessageRequest) -> dict[str, Any]:
     }
 
 
-@app.post("/api/voice/transcribe")
+@router.post("/api/voice/transcribe")
 async def transcribe_voice(file: UploadFile = File(...), language: str = Form(default="ar")) -> dict[str, Any]:
     file_bytes = await file.read()
     transcript = (
