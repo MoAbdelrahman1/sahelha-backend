@@ -127,7 +127,9 @@ DOCUMENT_COLUMN_MIGRATIONS: list[tuple[str, str]] = [
     ("dates_json", "TEXT"),
     ("amounts_json", "TEXT"),
     ("expiry_date", "TEXT"),
+    ("entities_json", "TEXT"),
 ]
+
 
 
 @contextmanager
