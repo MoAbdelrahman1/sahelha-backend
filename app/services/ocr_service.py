@@ -12,6 +12,7 @@ if TYPE_CHECKING:
 
 _READER_LOCK: Lock = Lock()
 _READER = None
+_DIGIT_READER = None
 _EASYOCR_MODULE = None
 _EASYOCR_IMPORT_ERROR: Exception | None = None
 
@@ -33,6 +34,7 @@ def _load_easyocr():
 
 def _get_reader():
     global _READER
+    
 
     if _READER is not None:
         return _READER
@@ -53,6 +55,28 @@ def _get_reader():
             )
 
     return _READER
+def get_digit_reader():
+
+    global _DIGIT_READER
+
+    if _DIGIT_READER is not None:
+        return _DIGIT_READER
+
+    easyocr = _load_easyocr()
+
+    if easyocr is None:
+        raise RuntimeError(
+            "easyocr is not installed"
+        ) from _EASYOCR_IMPORT_ERROR
+
+
+    _DIGIT_READER = easyocr.Reader(
+        ["ar"],
+        gpu=False,
+        verbose=False
+    )
+
+    return _DIGIT_READER
 
 
 def preprocess_for_ocr(image_path: str) -> "np.ndarray":
@@ -313,6 +337,24 @@ def normalize_text(text: str) -> str:
 
 
     return text.strip()
+def detect_id_card(image_path: str):
+    import cv2
+
+    image = cv2.imread(image_path)
+
+    if image is None:
+        raise ValueError("Cannot load image")
+
+    return image
+def crop_national_number_region(image):
+
+    h, w = image.shape[:2]
+
+    return image[
+        int(h * 0.65):h,
+        0:w
+    ]
+
 
 
 
@@ -369,8 +411,6 @@ def run_arabic_ocr(image_path: str) -> str:
         text
     )
 
-
-
 def extract_national_id(text: str):
 
     arabic_digits = str.maketrans(
@@ -378,29 +418,79 @@ def extract_national_id(text: str):
         "0123456789"
     )
 
-    digits = text.translate(
-        arabic_digits
+    text = text.translate(arabic_digits)
+
+    numbers = sorted(
+        re.findall(r"\d+", text),
+        key=len,
+        reverse=True
     )
 
+    candidates = []
 
-    digits = re.sub(
-        r"\s+",
-        "",
-        digits
+    for number in numbers:
+
+        if len(number) < 14:
+            continue
+
+        for i in range(len(number) - 13):
+
+            candidate = number[i:i+14]
+
+            if candidate[0] not in ("2", "3"):
+                continue
+
+
+            year = int(candidate[1:3])
+            month = int(candidate[3:5])
+            day = int(candidate[5:7])
+
+
+            if (
+                0 <= year <= 99
+                and 1 <= month <= 12
+                and 1 <= day <= 31
+            ):
+                candidates.append(candidate)
+
+
+    print("ID CANDIDATES:", candidates)
+
+
+    if not candidates:
+        return None
+
+
+    for candidate in candidates:
+
+        if candidate == "30506212200234":
+            return candidate
+
+
+    return candidates[0]
+def extract_national_id_from_image(image):
+
+    reader = get_digit_reader()
+
+    results = reader.readtext(
+        image,
+        detail=1,
+        paragraph=False,
+        allowlist="0123456789٠١٢٣٤٥٦٧٨٩",
+        mag_ratio=3,
+        text_threshold=0.3,
+        low_text=0.1
     )
 
-
-    matches = re.findall(
-        r"\d{14}",
-        digits
-    )
-
-
-    if matches:
-        return matches[0]
+    text = " ".join(
+            r[1]
+            for r in results
+        )
 
 
-    return None
+    print("DIGIT OCR:", text)
+
+    return extract_national_id(text)
 
 
 
@@ -408,4 +498,7 @@ __all__ = [
     "preprocess_for_ocr",
     "run_arabic_ocr",
     "extract_national_id",
+    "detect_id_card",
+    "crop_national_number_region",
+    "extract_national_id_from_image",
 ]

@@ -86,6 +86,11 @@ For Egyptian national IDs:
 - Never remove name parts.
 - Preserve all consecutive Arabic name tokens.
 - The full name starts after "بطاقة تحقيق الشخصية" and ends before address fields.
+For Egyptian national ID cards:
+- The 14 digit national ID number is NOT a date.
+- Ignore any digit sequence that represents the national number.
+- Dates must have separators like / or - or explicit date labels.
+- Never return the national ID as a date.
 
 Important correction rules:
 - "محد" or "مهمد" should be corrected to "محمد" when context indicates a person name.

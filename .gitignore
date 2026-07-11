@@ -2,3 +2,4 @@
 __pycache__/
 *.env
 uploads/
+app/test_docs/image.png

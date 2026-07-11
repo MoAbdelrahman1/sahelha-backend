@@ -26,6 +26,10 @@ This combination covers:
 • Any CI runner where sys.stdout has already been replaced
 """
 from __future__ import annotations
+from app.services.ocr_service import (
+    run_arabic_ocr,
+    extract_national_id
+)
 
 import io
 import sys
@@ -169,6 +173,40 @@ def process_document_pipeline(image_path: str) -> dict[str, Any]:
     # ── Stage 2 : LLM analysis ───────────────────────────────────────────────
     try:
         analysis: dict[str, Any] = analyze_document_text(ocr_text)
+        if analysis.get("doc_type") == "national_id":
+
+            from app.services.ocr_service import (
+                detect_id_card,
+                crop_national_number_region,
+                extract_national_id_from_image
+            )
+
+
+            card = detect_id_card(
+                image_path
+            )
+
+
+            number_region = crop_national_number_region(
+                card
+            )
+
+
+            national_number = extract_national_id_from_image(
+                number_region
+            )
+
+
+            if national_number:
+
+                analysis.setdefault(
+                    "entities",
+                    {}
+                )
+
+                analysis["entities"]["national_number"] = national_number
+
+
         response.update(analysis)
 
         _safe_print("[LLM ANALYSIS]")
