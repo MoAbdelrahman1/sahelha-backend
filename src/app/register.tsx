@@ -38,8 +38,9 @@ export default function RegisterScreen() {
   // Bumped to force-remount every ValidatedField (clearing value + border
   // state) after a successful submit or when this screen regains focus.
   const [formKey, setFormKey] = useState(0);
-  // Bumped on a blocked submit so every field evaluates as if just blurred,
-  // surfacing red borders/hints even on fields the user never actually left.
+  // Bumped on a blocked submit. Each ValidatedField only reacts to this if
+  // IT is currently empty (flagging itself red) — a field with content is
+  // never touched by this, so already-filled fields keep their own state.
   const [submitAttempt, setSubmitAttempt] = useState(0);
 
   const nameValid = isValidArabicName(fullName);
@@ -160,6 +161,7 @@ export default function RegisterScreen() {
         hasInvalidChar={passwordHasInvalidChar}
         isValid={isValidPassword}
         blurRedIfInvalid
+        liveGreen
         errorHint={PASSWORD_ERROR_HINT}
         secureTextEntry
         autoCapitalize="none"

@@ -1,5 +1,6 @@
 import React from "react";
 import { ScrollView, Text, View } from "react-native";
+import { useRouter } from "expo-router";
 
 import { HomeHeader } from "@/features/home/components/HomeHeader";
 import { StatusPill } from "@/features/home/components/StatusPill";
@@ -13,6 +14,8 @@ import { HOME_FEATURES } from "@/features/home/data";
 // RTL note: hand-mirrored (row-reverse containers + right-aligned text) like
 // the rest of the app, not via I18nManager.
 export default function HomeScreen() {
+  const router = useRouter();
+
   return (
     <ScrollView
       className="flex-1 bg-white"
@@ -37,8 +40,13 @@ export default function HomeScreen() {
             <FeatureCard
               key={feature.id}
               feature={feature}
-              // TODO: navigate to this feature's screen once it exists.
-              onPress={() => {}}
+              onPress={() => {
+                if (feature.route) {
+                  router.push(feature.route);
+                  return;
+                }
+                // TODO: navigate to this feature's screen once it exists.
+              }}
             />
           ))}
         </View>

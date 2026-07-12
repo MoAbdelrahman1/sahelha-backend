@@ -1,11 +1,14 @@
 import type { ComponentProps } from "react";
 import type { Ionicons } from "@expo/vector-icons";
+import type { Href } from "expo-router";
 
 export type HomeFeature = {
   id: string;
   icon: ComponentProps<typeof Ionicons>["name"];
   title: string;
   subtitle: string;
+  /** Where this card navigates. Omitted while a feature's screen doesn't exist yet. */
+  route?: Href;
 };
 
 // Order matches the spec exactly — this is the single source of truth the
@@ -16,6 +19,7 @@ export const HOME_FEATURES: HomeFeature[] = [
     icon: "scan-outline",
     title: "تصوير المستندات وتلخيصها",
     subtitle: "صوّر أي مستند واسمع أهم المعلومات فيه — المبلغ والموعد والخطوة التالية",
+    route: "/scan",
   },
   {
     id: "voice-forms",
