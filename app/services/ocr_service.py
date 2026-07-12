@@ -480,6 +480,7 @@ def extract_national_id_from_image(image):
         mag_ratio=3,
         text_threshold=0.3,
         low_text=0.1
+        
     )
 
     text = " ".join(
