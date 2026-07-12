@@ -13,6 +13,7 @@ from app.core.storage import file_extension, save_upload_file
 from app.db import db_connection
 from app.schemas import DocumentUploadResponse, UserDocumentResponse
 from app.services.pipeline import process_document_pipeline
+from app.services.reminder_service import create_reminder_from_expiry
 
 router = APIRouter()
 
@@ -35,7 +36,7 @@ def _row_to_document(row: sqlite3.Row) -> dict[str, Any]:
     }
 
 
-def _run_pipeline_and_persist(doc_id: int, image_path: str) -> None:
+def _run_pipeline_and_persist(doc_id: int, image_path: str, user_id: int) -> None:
     """Runs on FastAPI's background threadpool after the upload response is sent.
 
     Calls the AI engineer's OCR + Groq pipeline (app/services/pipeline.py) and writes
@@ -68,6 +69,10 @@ def _run_pipeline_and_persist(doc_id: int, image_path: str) -> None:
         )
         connection.commit()
 
+    expiry_date = result.get("expiry_date")
+    if expiry_date:
+        create_reminder_from_expiry(doc_id, user_id, expiry_date)
+
 
 @router.post("/upload", response_model=DocumentUploadResponse)
 async def upload_document(
@@ -96,7 +101,7 @@ async def upload_document(
         connection.commit()
         doc_id = int(cursor.lastrowid)
 
-    background_tasks.add_task(_run_pipeline_and_persist, doc_id, image_path)
+    background_tasks.add_task(_run_pipeline_and_persist, doc_id, image_path, current_user["id"])
 
     return {"doc_id": doc_id, "status": "processing", "message": "Document received, processing started"}
 
