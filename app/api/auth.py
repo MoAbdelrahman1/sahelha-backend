@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from app.core.security import create_access_token, create_refresh_token, get_current_user, hash_password, now_iso, verify_password
 from app.db import db_connection
-from app.schemas import LoginRequest, RegisterRequest, TokenResponse, UserResponse
+from app.schemas import FcmTokenRequest, LoginRequest, RegisterRequest, TokenResponse, UserResponse
 
 router = APIRouter()
 
@@ -63,3 +63,17 @@ def login(body: LoginRequest) -> dict[str, Any]:
 @router.get("/me", response_model=UserResponse)
 def me(current_user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
     return current_user
+
+
+@router.put("/fcm-token")
+def update_fcm_token(
+    body: FcmTokenRequest,
+    current_user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, str]:
+    with db_connection() as connection:
+        connection.execute(
+            "UPDATE users SET fcm_token = ? WHERE id = ?",
+            (body.fcm_token, current_user["id"]),
+        )
+        connection.commit()
+    return {"message": "FCM token updated"}
