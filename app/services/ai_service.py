@@ -96,6 +96,15 @@ Important correction rules:
 - "محد" or "مهمد" should be corrected to "محمد" when context indicates a person name.
 - Fix spacing and broken Arabic words.
 
+For expiry_date:
+- If the document text contains an expiration, validity, or "valid until" date
+  (e.g. "تاريخ الانتهاء", "صالحة حتى", "صلاحية", "expiry", "valid until"), extract
+  that exact date into "expiry_date".
+- Prefer the date printed next to the expiry/validity label over any other date
+  in the document (e.g. issue date, birth date).
+- Return the date in the same format it appears in the OCR text.
+- Only use null if no expiration/validity date is present in the document at all.
+
 
 Return ONLY valid JSON.
 
@@ -221,9 +230,22 @@ def _extract_expiry_date(text: str, dates: list[str]) -> str | None:
         "expiry", "expires", "valid until", "expiration", "exp date",
         "انتهاء", "صلاحية", "تنتهي", "صالح حتى", "صالحة حتى",
     ]
-    if any(m in text.lower() for m in markers):
-        return dates[0] if dates else None
-    return None
+    lowered = text.lower()
+    marker_pos = min(
+        (lowered.find(m) for m in markers if m in lowered),
+        default=-1,
+    )
+    if marker_pos == -1 or not dates:
+        return None
+
+    # Prefer the date whose position in the text is closest to the expiry
+    # keyword, rather than blindly picking the first date found anywhere
+    # (e.g. an issue date or birth date that happens to appear earlier).
+    def _distance(date: str) -> int:
+        idx = lowered.find(date.lower())
+        return abs(idx - marker_pos) if idx != -1 else len(text)
+
+    return min(dates, key=_distance)
 
 
 def _extract_tags(text: str, doc_type: str) -> list[str]:
@@ -345,11 +367,6 @@ def _coerce_result(payload: dict[str, Any], ocr_text: str) -> DocumentAnalysisRe
     }
 
     # Expiry date handling
-    expiry_raw = payload.get(
-        "expiry_date",
-        fb["expiry_date"]
-    )
-
     _null_values = (
         None,
         "",
@@ -359,6 +376,14 @@ def _coerce_result(payload: dict[str, Any], ocr_text: str) -> DocumentAnalysisRe
         "n/a",
         "nil"
     )
+
+    # payload.get(key, default) only falls back when the key is *missing* —
+    # the LLM always includes "expiry_date": null explicitly, so that lookup
+    # alone would never reach the heuristic fallback. Fall back explicitly
+    # whenever the LLM's value is one of the null-ish values instead.
+    expiry_raw = payload.get("expiry_date")
+    if expiry_raw in _null_values:
+        expiry_raw = fb["expiry_date"]
 
     expiry_date: str | None = (
         None

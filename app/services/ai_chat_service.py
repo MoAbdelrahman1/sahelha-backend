@@ -11,29 +11,24 @@ from app.services.ai_service import _get_client, _GROQ_MODEL, SYSTEM_PROMPT
 # Session handling
 # ---------------------------------------------------------------------------
 
-def get_or_create_session(user_id: int, session_id: str | None = None) -> str:
-    """Return an existing session ID or create a new one."""
+def get_or_create_session(user_id: int, document_id: int, session_id: str | None = None) -> str:
+    """Return an existing session ID (scoped to this user + document) or create a new one."""
     with db_connection() as conn:
         if session_id:
             row = conn.execute(
-                "SELECT id FROM chat_sessions WHERE id = ?",
-                (session_id,)
+                "SELECT id FROM chat_sessions WHERE id = ? AND user_id = ? AND document_id = ?",
+                (session_id, user_id, document_id),
             ).fetchone()
-            if not row:
-                now = datetime.utcnow().isoformat()
-               # get_or_create_session — both INSERT statements become:
-                conn.execute(
-                    "INSERT INTO chat_sessions (id, created_at, last_message_at) VALUES (?, ?, ?)",
-                    (session_id, now, now)
-                )
-                conn.commit()
-            return session_id
+            if row:
+                return session_id
+            # Unknown or foreign session id: fall through and mint a fresh one
+            # rather than trusting a caller-supplied id for a different user/document.
 
         new_id = str(uuid.uuid4())
         now = datetime.utcnow().isoformat()
         conn.execute(
-                    "INSERT INTO chat_sessions (id, created_at, last_message_at) VALUES (?, ?, ?)",
-                    (session_id, now, now)
+            "INSERT INTO chat_sessions (id, created_at, last_message_at, user_id, document_id) VALUES (?, ?, ?, ?, ?)",
+            (new_id, now, now, user_id, document_id),
         )
         conn.commit()
         return new_id
