@@ -65,6 +65,7 @@ class UserDocumentResponse(BaseModel):
     doc_type: str | None
     ai_summary: str | None
     ocr_text: str | None
+    entities: dict[str, str] = {}
     dates: list[str] = []
     amounts: list[str] = []
     expiry_date: str | None = None

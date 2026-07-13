@@ -16,9 +16,11 @@ router = APIRouter()
 @router.get("/search", response_model=list[UserDocumentResponse])
 def search(
     q: str = Query(..., min_length=1, description="Natural language query"),
+    tags: str | None = Query(default=None, description="Comma-separated tags, all must match"),
     current_user: dict[str, Any] = Depends(get_current_user),
 ) -> list[dict[str, Any]]:
-    rows = search_documents(current_user["id"], q)
+    tag_list = tags.split(",") if tags else []
+    rows = search_documents(current_user["id"], q, tag_list)
     return [_row_to_document(row) for row in rows]
 
 

@@ -21,12 +21,22 @@ router = APIRouter()
 def _row_to_document(row: sqlite3.Row) -> dict[str, Any]:
     image_path = row["image_path"]
     document_type = row["document_type"]
+    
+    # Safely get entities_json if it exists in the row
+    entities = {}
+    if "entities_json" in row.keys() and row["entities_json"]:
+        try:
+            entities = json.loads(row["entities_json"])
+        except Exception:
+            pass
+
     return {
         "id": row["id"],
         "status": row["status"] or "processing",
         "doc_type": None if document_type in (None, "processing") else document_type,
         "ai_summary": row["ai_summary"],
         "ocr_text": row["raw_text"],
+        "entities": entities,
         "dates": json.loads(row["dates_json"]) if row["dates_json"] else [],
         "amounts": json.loads(row["amounts_json"]) if row["amounts_json"] else [],
         "expiry_date": row["expiry_date"],
@@ -52,7 +62,8 @@ def _run_pipeline_and_persist(doc_id: int, image_path: str, user_id: int) -> Non
             """
             UPDATE documents
             SET document_type = ?, ai_summary = ?, raw_text = ?, tags = ?,
-                dates_json = ?, amounts_json = ?, expiry_date = ?, status = ?
+                dates_json = ?, amounts_json = ?, expiry_date = ?, status = ?,
+                entities_json = ?
             WHERE id = ?
             """,
             (
@@ -64,9 +75,33 @@ def _run_pipeline_and_persist(doc_id: int, image_path: str, user_id: int) -> Non
                 json.dumps(result.get("amounts", [])),
                 result.get("expiry_date"),
                 status,
+                json.dumps(result.get("entities", {})),
                 doc_id,
             ),
         )
+        
+        # Populate document_fields table with extracted entities
+        entities = result.get("entities", {})
+        if isinstance(entities, dict) and entities:
+            fields_to_insert = []
+            for key, val in entities.items():
+                if val:
+                    label_ar = {
+                        "name": "الاسم",
+                        "address": "العنوان",
+                        "governorate": "المحافظة"
+                    }.get(key, key)
+                    fields_to_insert.append((doc_id, key, label_ar, val))
+            
+            if fields_to_insert:
+                connection.executemany(
+                    """
+                    INSERT INTO document_fields (document_id, field_key, field_label_ar, field_value)
+                    VALUES (?, ?, ?, ?)
+                    """,
+                    fields_to_insert,
+                )
+
         connection.commit()
 
     expiry_date = result.get("expiry_date")

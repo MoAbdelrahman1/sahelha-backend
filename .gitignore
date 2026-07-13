@@ -1,4 +1,10 @@
 ﻿venv/
+venv311/
+app/services/models/
 __pycache__/
 *.env
 uploads/
+app/test_docs/image.png
+venv311/Lib/site-packages/torch-2.13.0.dist-info/licenses/third_party/aiter/LICENSE
+
+sahelha.db

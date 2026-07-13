@@ -29,8 +29,8 @@ async def speech_to_text(
 
     try:
         from app.services.voice_service import transcribe
-    except ImportError:
-        raise HTTPException(status_code=503, detail="STT service not ready yet")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
     transcript = transcribe(audio_path)
     return {"transcript": transcript, "language": "ar"}
@@ -49,8 +49,8 @@ def text_to_speech(
 
     try:
         from app.services.voice_service import synthesize
-    except ImportError:
-        raise HTTPException(status_code=503, detail="TTS service not ready yet")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
     relative_name = f"{current_user['id']}/tts_{uuid4().hex}.wav"
     output_path = Path(get_upload_dir()) / relative_name

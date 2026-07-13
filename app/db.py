@@ -139,7 +139,14 @@ DOCUMENT_COLUMN_MIGRATIONS: list[tuple[str, str]] = [
     ("dates_json", "TEXT"),
     ("amounts_json", "TEXT"),
     ("expiry_date", "TEXT"),
+    ("entities_json", "TEXT"),
 ]
+
+CHAT_SESSION_COLUMN_MIGRATIONS: list[tuple[str, str]] = [
+    ("user_id", "INTEGER REFERENCES users(id)"),
+    ("document_id", "INTEGER REFERENCES documents(id)"),
+]
+
 
 
 @contextmanager
@@ -164,9 +171,68 @@ def ensure_column(connection: sqlite3.Connection, table: str, column: str, ddl: 
         connection.execute(f"ALTER TABLE {table} ADD COLUMN {column} {ddl}")
 
 
+def ensure_documents_fts(connection: sqlite3.Connection) -> None:
+    """Create (and backfill) an FTS5 index over documents for real full-text
+    search, replacing the old LIKE-based scan in archive_service.py."""
+    connection.execute(
+        """
+        CREATE VIRTUAL TABLE IF NOT EXISTS documents_fts USING fts5(
+            document_type, ai_summary, raw_text, tags,
+            content='documents', content_rowid='id',
+            tokenize='unicode61 remove_diacritics 2'
+        )
+        """
+    )
+    connection.execute(
+        """
+        CREATE TRIGGER IF NOT EXISTS documents_fts_ai AFTER INSERT ON documents BEGIN
+            INSERT INTO documents_fts(rowid, document_type, ai_summary, raw_text, tags)
+            VALUES (new.id, new.document_type, new.ai_summary, new.raw_text, new.tags);
+        END
+        """
+    )
+    connection.execute(
+        """
+        CREATE TRIGGER IF NOT EXISTS documents_fts_ad AFTER DELETE ON documents BEGIN
+            INSERT INTO documents_fts(documents_fts, rowid, document_type, ai_summary, raw_text, tags)
+            VALUES ('delete', old.id, old.document_type, old.ai_summary, old.raw_text, old.tags);
+        END
+        """
+    )
+    connection.execute(
+        """
+        CREATE TRIGGER IF NOT EXISTS documents_fts_au AFTER UPDATE ON documents BEGIN
+            INSERT INTO documents_fts(documents_fts, rowid, document_type, ai_summary, raw_text, tags)
+            VALUES ('delete', old.id, old.document_type, old.ai_summary, old.raw_text, old.tags);
+            INSERT INTO documents_fts(rowid, document_type, ai_summary, raw_text, tags)
+            VALUES (new.id, new.document_type, new.ai_summary, new.raw_text, new.tags);
+        END
+        """
+    )
+
+    # NB: COUNT(*) on an external-content FTS5 table can be answered straight
+    # from the content table without touching the inverted index, so it's
+    # not a reliable "already indexed" check. The docsize shadow table only
+    # gets a row once something has actually been indexed, so compare against
+    # that instead to find rows that predate the FTS table's creation.
+    doc_count = table_count(connection, "documents")
+    indexed_count = table_count(connection, "documents_fts_docsize")
+    if indexed_count < doc_count:
+        connection.execute(
+            """
+            INSERT INTO documents_fts(rowid, document_type, ai_summary, raw_text, tags)
+            SELECT id, document_type, ai_summary, raw_text, tags FROM documents
+            WHERE id NOT IN (SELECT rowid FROM documents_fts_docsize)
+            """
+        )
+    connection.commit()
+
+
 def migrate_documents_table(connection: sqlite3.Connection) -> None:
     for column, ddl in DOCUMENT_COLUMN_MIGRATIONS:
         ensure_column(connection, "documents", column, ddl)
+    for column, ddl in CHAT_SESSION_COLUMN_MIGRATIONS:
+        ensure_column(connection, "chat_sessions", column, ddl)
     connection.commit()
 
 
@@ -238,4 +304,5 @@ def init_db(schema_sql: str) -> None:
     with db_connection() as connection:
         connection.executescript(schema_sql)
         migrate_documents_table(connection)
+        ensure_documents_fts(connection)
         seed_if_empty(connection)

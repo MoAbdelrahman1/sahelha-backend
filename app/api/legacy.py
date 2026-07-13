@@ -189,14 +189,3 @@ def chat_message(payload: ChatMessageRequest) -> dict[str, Any]:
         "response_audio_url": response_audio_url,
         "action_cards": action_cards,
     }
-
-
-@router.post("/api/voice/transcribe")
-async def transcribe_voice(file: UploadFile = File(...), language: str = Form(default="ar")) -> dict[str, Any]:
-    file_bytes = await file.read()
-    transcript = (
-        "هذه نسخة أولية. تم استلام الملف بنجاح، لكن ربط Whisper لم يُفعّل بعد. "
-        f"اسم الملف: {file.filename}. الحجم: {len(file_bytes)} بايت."
-    )
-
-    return {"language": language, "transcript": transcript, "provider": "placeholder", "ready_for_chat": True}
