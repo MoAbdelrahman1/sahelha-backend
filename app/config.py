@@ -14,6 +14,12 @@ SECRET_KEY = os.getenv("SECRET_KEY", "sahelha-dev-secret-change-in-production")
 ACCESS_TOKEN_EXPIRE_HOURS = int(os.getenv("ACCESS_TOKEN_EXPIRE_HOURS", "24"))
 REFRESH_TOKEN_EXPIRE_DAYS = int(os.getenv("REFRESH_TOKEN_EXPIRE_DAYS", "30"))
 
+# FCM legacy HTTP API server key for reminder push notifications. Optional —
+# reminders still get marked sent on schedule if this isn't configured, the
+# push just gets skipped (see app/services/reminder_service.py).
+FCM_SERVER_KEY = os.getenv("FCM_SERVER_KEY")
+REMINDER_CHECK_INTERVAL_SECONDS = int(os.getenv("REMINDER_CHECK_INTERVAL_SECONDS", str(30 * 60)))
+
 SERVICE_SEED = [
     {"id": 1, "name_ar": "بطاقة الرقم القومي", "icon_emoji": "🪪", "icon_url": None},
     {"id": 2, "name_ar": "شهادة الميلاد", "icon_emoji": "📄", "icon_url": None},

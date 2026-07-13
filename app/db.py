@@ -113,6 +113,18 @@ CREATE TABLE IF NOT EXISTS api_request_cache (
     response_json TEXT NOT NULL,
     created_at TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS reminders (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    document_id INTEGER,
+    remind_at TEXT NOT NULL,
+    message TEXT,
+    sent INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+    FOREIGN KEY (document_id) REFERENCES documents (id) ON DELETE CASCADE
+);
 """
 
 # Columns added after the original `documents` table shipped. SQLite's

@@ -11,6 +11,7 @@ from app.schemas.document import (
     ReadDocumentResponse,
     UserDocumentResponse,
 )
+from app.schemas.reminder import FcmTokenRequest, ReminderCreate, ReminderResponse
 from app.schemas.service import NearbyOffice, ServiceCategory
 from app.schemas.user import ChatMessageRequest, ChatMessageResponse, ChatSessionResponse, MessageResponse
 from app.schemas.voice import VoiceSynthesizeRequest, VoiceSynthesizeResponse, VoiceTranscribeResponse
@@ -28,6 +29,9 @@ __all__ = [
     "ExtractedField",
     "ReadDocumentResponse",
     "UserDocumentResponse",
+    "FcmTokenRequest",
+    "ReminderCreate",
+    "ReminderResponse",
     "NearbyOffice",
     "ServiceCategory",
     "ChatMessageRequest",
