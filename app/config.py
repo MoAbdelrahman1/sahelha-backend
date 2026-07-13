@@ -5,7 +5,7 @@ from pathlib import Path
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-DB_PATH = BASE_DIR / "sahelha.db"
+DB_PATH = Path(os.getenv("DB_PATH", str(BASE_DIR / "sahelha.db")))
 UPLOAD_DIR = BASE_DIR / "uploads"
 
 # python-jose/passlib aren't installed in every dev environment here, so auth

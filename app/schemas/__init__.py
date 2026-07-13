@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from app.schemas.ai import AiAskResponse
 from app.schemas.auth import LoginRequest, RegisterRequest, TokenResponse, UserResponse
 from app.schemas.document import (
     DocumentAnalyzeResponse,
@@ -17,6 +18,7 @@ from app.schemas.user import ChatMessageRequest, ChatMessageResponse, ChatSessio
 from app.schemas.voice import VoiceSynthesizeRequest, VoiceSynthesizeResponse, VoiceTranscribeResponse
 
 __all__ = [
+    "AiAskResponse",
     "LoginRequest",
     "RegisterRequest",
     "TokenResponse",

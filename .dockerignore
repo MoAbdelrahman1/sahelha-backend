@@ -1,0 +1,9 @@
+venv/
+venv311/
+__pycache__/
+*.pyc
+uploads/
+sahelha.db
+*.env
+.env
+.git/
