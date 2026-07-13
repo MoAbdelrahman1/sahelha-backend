@@ -7,6 +7,38 @@ export const FRIENDLY_AUTH_ERROR_AR = "البريد الإلكتروني أو ك
 export const FRIENDLY_VALIDATION_ERROR_AR = "يرجى التحقق من البيانات المدخلة والمحاولة مرة أخرى.";
 export const FRIENDLY_GENERIC_ERROR_AR = "حدث خطأ غير متوقع. يرجى المحاولة مرة أخرى.";
 
+// Field names as they appear in a 422 `detail[].loc` array (FastAPI/pydantic
+// convention), mapped to their existing Arabic label so the message names
+// the actual field instead of a generic "check your input".
+const VALIDATION_FIELD_LABELS_AR: Record<string, string> = {
+  email: "البريد الإلكتروني",
+  password: "كلمة المرور",
+  full_name: "الاسم",
+  phone: "رقم الهاتف",
+  file: "الصورة",
+};
+
+type ValidationDetailItem = { loc?: (string | number)[]; msg?: string; type?: string };
+
+// Turns a 422 response's `detail` array into a readable Arabic message
+// naming the offending field(s), instead of surfacing the raw English
+// pydantic error text. Falls back to the generic validation message if
+// `detail` is missing, empty, or names no field this app recognizes.
+function formatValidationErrorAr(detail: unknown): string {
+  if (!Array.isArray(detail) || detail.length === 0) return FRIENDLY_VALIDATION_ERROR_AR;
+
+  const fieldLabels = new Set<string>();
+  for (const item of detail as ValidationDetailItem[]) {
+    const fieldKey = Array.isArray(item?.loc) ? item.loc[item.loc.length - 1] : undefined;
+    if (typeof fieldKey === "string" && VALIDATION_FIELD_LABELS_AR[fieldKey]) {
+      fieldLabels.add(VALIDATION_FIELD_LABELS_AR[fieldKey]);
+    }
+  }
+
+  if (fieldLabels.size === 0) return FRIENDLY_VALIDATION_ERROR_AR;
+  return `يرجى التحقق من: ${Array.from(fieldLabels).join("، ")}`;
+}
+
 export class ApiError extends Error {
   friendlyMessageAr: string;
   status?: number;
@@ -41,7 +73,10 @@ export function toApiError(error: unknown): ApiError {
     if (status && status >= 500) {
       return new ApiError(FRIENDLY_SERVER_ERROR_AR, { status, isRetryable: true });
     }
-    if (status === 400 || status === 422) {
+    if (status === 422) {
+      return new ApiError(formatValidationErrorAr(error.response?.data?.detail), { status, isRetryable: false });
+    }
+    if (status === 400) {
       return new ApiError(FRIENDLY_VALIDATION_ERROR_AR, { status, isRetryable: false });
     }
     if (status && status >= 400) {

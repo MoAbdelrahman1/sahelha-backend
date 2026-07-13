@@ -25,7 +25,15 @@
     "plugins": [
       "expo-router",
       "expo-status-bar",
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "يحتاج التطبيق إلى الوصول إلى الكاميرا لتصوير المستندات الحكومية.",
+          "photosPermission": false,
+          "microphonePermission": false
+        }
+      ]
     ]
   }
 }

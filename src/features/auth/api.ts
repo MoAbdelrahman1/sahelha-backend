@@ -2,15 +2,15 @@ import { apiClient } from "@/lib/api/client";
 import { saveTokens } from "@/lib/api/tokenStore";
 import { toApiError } from "@/lib/api/errors";
 
-// Mirrors the FastAPI backend's response shape for /auth/register and
-// /auth/login. The contract isn't final — this is the one place to update
-// when it changes.
+// Mirrors the confirmed Swagger contract for /api/auth/register,
+// /api/auth/login, and /api/auth/me — see docs/API.md. This is the one place
+// to update when the contract changes.
 export type AuthUser = {
-  id?: string;
+  id: number;
   email: string;
-  full_name?: string;
-  phone?: string;
-  [key: string]: unknown;
+  full_name: string;
+  phone: string;
+  created_at: string;
 };
 
 export type AuthResponse = {
@@ -23,8 +23,8 @@ export type AuthResponse = {
 export type RegisterInput = {
   email: string;
   password: string;
-  full_name?: string;
-  phone?: string;
+  full_name: string;
+  phone: string;
 };
 
 export async function login(email: string, password: string): Promise<AuthResponse> {
@@ -53,6 +53,8 @@ export async function register(input: RegisterInput): Promise<AuthResponse> {
   }
 }
 
+// Returns the bare user object directly — /api/auth/me is NOT wrapped in a
+// `{ user: ... }` envelope like login/register are.
 export async function getMe(): Promise<AuthUser> {
   try {
     const { data } = await apiClient.get<AuthUser>("/api/auth/me");
