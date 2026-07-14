@@ -36,6 +36,7 @@ export async function login(email: string, password: string): Promise<AuthRespon
     await saveTokens(data.access_token, data.refresh_token);
     return data;
   } catch (error) {
+    console.log('AUTH API RAW ERROR =>', error);
     throw toApiError(error);
   }
 }

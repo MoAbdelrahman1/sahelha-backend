@@ -8,6 +8,7 @@
 // base URL or a timeout; never put API keys or credentials behind one.
 //
 // See .env.example at the project root for the full list of keys.
+console.log('API_BASE_URL =>', JSON.stringify(process.env.EXPO_PUBLIC_API_BASE_URL));
 
 export const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL ?? "https://REPLACE_ME";
 
