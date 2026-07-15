@@ -16,11 +16,7 @@ app = FastAPI(title="Sahelha Backend", version="0.1.0")
 # "https://sahelha.app,https://staging.sahelha.app". Defaults to local dev
 # origins only — set ALLOWED_ORIGINS in production, "*" is not permitted
 # together with credentials and shouldn't be used past local development.
-_allowed_origins = [
-    origin.strip()
-    for origin in os.getenv("ALLOWED_ORIGINS", "http://localhost:3000,http://localhost:8081").split(",")
-    if origin.strip()
-]
+_allowed_origins = ["*"]
 
 app.add_middleware(
     CORSMiddleware,
