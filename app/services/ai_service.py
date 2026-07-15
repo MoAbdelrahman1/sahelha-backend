@@ -427,6 +427,10 @@ def analyze_document_text(ocr_text: str) -> dict[str, Any]:
     normalized = ocr_text.strip()
     if not normalized:
         return dict(_fallback_analysis(ocr_text))
+    print(f"[AI SERVICE] OCR text length: {len(normalized)}")
+    print(f"[AI SERVICE] Using model: {_GROQ_MODEL}")
+    print(f"[AI SERVICE] API key set: {bool(os.getenv('GROQ_API_KEY'))}")
+
 
     try:
         client = _get_client()
