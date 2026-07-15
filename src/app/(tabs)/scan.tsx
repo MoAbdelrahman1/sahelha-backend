@@ -8,6 +8,8 @@ import { CameraPreviewPlaceholder } from "@/features/scan/components/CameraPrevi
 import { ExtractRow } from "@/features/scan/components/ExtractRow";
 import { analyzeDocument, type AnalyzeDocumentResponse } from "@/features/scan/api";
 import { buildScanResultRows } from "@/features/scan/resultRows";
+import { useTtsPlayer } from "@/features/scan/useTtsPlayer";
+import { useScreenReaderEnabled } from "@/features/scan/useScreenReaderEnabled";
 import { ApiError } from "@/lib/api/errors";
 
 // Feature 1 — مسح المستندات الذكي. Flow: capture with the SYSTEM camera
@@ -47,6 +49,18 @@ export default function ScanScreen() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [permissionBlocked, setPermissionBlocked] = useState(false);
 
+  const screenReaderEnabled = useScreenReaderEnabled();
+  const { speak, speakingId } = useTtsPlayer({
+    onError: (message) => {
+      setErrorMessage(message);
+      // This announcement is TTS-failure copy, never the row text TTS was
+      // about to speak, and only fires when TTS itself failed to start — so
+      // it can never double up with TTS audio (see the mic handler below
+      // for the matching anti-clash rule on the other side of this flow).
+      if (screenReaderEnabled) AccessibilityInfo.announceForAccessibility(message);
+    },
+  });
+
   const capturePhoto = async () => {
     setErrorMessage(null);
 
@@ -85,7 +99,9 @@ export default function ScanScreen() {
     }
   };
 
-  const rows = buildScanResultRows(analyzeResult);
+  // Gated on a real, successful analyze response — no rows (not even
+  // placeholder "—" rows) render during idle/captured/analyzing/error states.
+  const rows = analyzeResult ? buildScanResultRows(analyzeResult) : [];
 
   return (
     <ScrollView
@@ -168,23 +184,34 @@ export default function ScanScreen() {
         </View>
       )}
 
-      <View>
-        <Text className="mb-2 text-right text-lg font-extrabold text-ink">يستخرج تلقائياً</Text>
-        <View className="rounded-card border-2 border-line bg-white px-4">
-          {rows.map((row, index) => (
-            <ExtractRow
-              key={row.id}
-              label={row.label}
-              value={row.value}
-              showDivider={index < rows.length - 1}
-              onSpeakerPress={() => {
-                // TODO: wire TTS in the next prompt
-              }}
-              speakerAccessibilityLabel={`استمع إلى: ${row.label}`}
-            />
-          ))}
+      {rows.length > 0 ? (
+        <View>
+          <Text className="mb-2 text-right text-lg font-extrabold text-ink">يستخرج تلقائياً</Text>
+          <View className="rounded-card border-2 border-line bg-white px-4">
+            {rows.map((row, index) => (
+              <ExtractRow
+                key={row.id}
+                label={row.label}
+                value={row.value}
+                showDivider={index < rows.length - 1}
+                isSpeaking={speakingId === row.id}
+                onSpeakerPress={() => {
+                  // Anti-clash design: never call
+                  // AccessibilityInfo.announceForAccessibility with this
+                  // row's text here. TTS is about to speak this exact
+                  // content out loud, and pairing that with a screen-reader
+                  // announcement of the same text would produce two
+                  // overlapping voices reading the same thing. TTS playback
+                  // itself always starts on tap regardless of screen-reader
+                  // state — only the announcement is what's being avoided.
+                  void speak(row.value, row.id);
+                }}
+                speakerAccessibilityLabel={`استمع إلى ${row.label}`}
+              />
+            ))}
+          </View>
         </View>
-      </View>
+      ) : null}
     </ScrollView>
   );
 }

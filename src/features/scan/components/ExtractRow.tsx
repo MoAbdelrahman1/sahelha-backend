@@ -8,6 +8,10 @@ type ExtractRowProps = {
   showDivider: boolean;
   onSpeakerPress: () => void;
   speakerAccessibilityLabel: string;
+  // Whether this row's TTS clip is the one currently loading/playing —
+  // swaps the speaker icon so the "currently speaking" state has a visible
+  // signal beyond color (per the accessibility hard constraint).
+  isSpeaking?: boolean;
 };
 
 // Row = bullet dot + label/value + a speaker button. The row itself is a
@@ -20,6 +24,7 @@ export function ExtractRow({
   showDivider,
   onSpeakerPress,
   speakerAccessibilityLabel,
+  isSpeaking = false,
 }: ExtractRowProps) {
   return (
     <View
@@ -38,7 +43,7 @@ export function ExtractRow({
         accessibilityLabel={speakerAccessibilityLabel}
         className="h-14 w-14 items-center justify-center rounded-full active:opacity-70"
       >
-        <Ionicons name="volume-high-outline" size={24} color="#2563EB" />
+        <Ionicons name={isSpeaking ? "stop-circle" : "volume-high-outline"} size={24} color="#2563EB" />
       </Pressable>
     </View>
   );

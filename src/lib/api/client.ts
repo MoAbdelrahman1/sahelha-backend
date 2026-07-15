@@ -19,9 +19,7 @@ export const apiClient = axios.create({
 });
 
 apiClient.interceptors.request.use(async (config) => {
-  console.log('INTERCEPTOR: about to read token');
   const token = await getAccessToken();
-  console.log('INTERCEPTOR: token read OK');
   if (token) {
     config.headers = config.headers ?? {};
     (config.headers as Record<string, string>).Authorization = `Bearer ${token}`;

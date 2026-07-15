@@ -1,9 +1,10 @@
 # API Contract
 
 Confirmed against the official Swagger for the real backend (2026-07-13,
-extended same day with the readiness-check and document-analyze endpoints).
-This is authoritative — if any other doc or code comment in this repo
-disagrees with what's written here, this file wins.
+extended same day with the readiness-check and document-analyze endpoints;
+extended again on 2026-07-15 with the text-to-speech endpoint). This is
+authoritative — if any other doc or code comment in this repo disagrees with
+what's written here, this file wins.
 
 ## Auth endpoints
 
@@ -158,6 +159,56 @@ auth endpoints above.
 it only returns `{doc_id, status, message}` with no analysis, so calling it
 from the scan screen would upload the same image twice for no benefit. The
 scan screen calls `/api/document/analyze` only.
+
+## POST /api/voice/tts
+
+Implemented in `src/features/scan/api.ts` (`speakText`), used by the
+speaker/mic buttons on `src/app/(tabs)/scan.tsx` via
+`src/features/scan/useTtsPlayer.ts`.
+
+Auth required: **yes** — `Authorization: Bearer <access_token>`. Attached
+automatically by the request interceptor in `src/lib/api/client.ts`; callers
+don't need to set it themselves, but they must call it through `apiClient`
+(never a raw client) for that to happen.
+
+Request body (`application/json`):
+```json
+{
+  "text": "string",
+  "language": "ar"
+}
+```
+
+Response `200` (`application/json`):
+```json
+{
+  "audio_url": "string"
+}
+```
+
+Response `422` (validation error): identical `detail` array shape to the
+auth/analyze endpoints above.
+
+### Resolving `audio_url`
+
+`audio_url` is not guaranteed to be one fixed shape. `src/features/scan/audioUrl.ts`
+(`resolveTtsAudioUrl`) handles all three cases seen from this backend:
+1. Starts with `http` → already an absolute, playable URL — used as-is.
+2. Starts with `/` (e.g. `/uploads/1/tts_x.wav`) → a root-relative path —
+   prefixed with `API_BASE_URL` (`src/lib/config.ts`).
+3. Anything else → treated as a bare cache key and resolved through
+   `GET /api/audio/{cache_key}` (see below) by building
+   `${API_BASE_URL}/api/audio/${audio_url}`.
+
+## Available in backend, not yet integrated
+
+These endpoints exist in the Swagger but nothing in this app calls them yet:
+
+- **`POST /api/ai/ask`** — not wired into any screen this session.
+- **`GET /api/audio/{cache_key}`** — not called directly by app code; it's
+  only ever reached indirectly, as the URL built by `resolveTtsAudioUrl()`
+  case 3 above when a TTS response returns a bare cache key instead of a
+  full URL.
 
 ## UNCONFIRMED / MISSING
 

@@ -36,3 +36,20 @@ export async function analyzeDocument(photoUri: string): Promise<AnalyzeDocument
     throw toApiError(error);
   }
 }
+
+export type SpeakTextResponse = { audio_url: string };
+
+// POST /api/voice/tts — see docs/API.md. Auth required: the shared
+// `apiClient` request interceptor attaches the bearer token automatically,
+// so this must go through `apiClient` and never a raw client.
+export async function speakText(text: string): Promise<SpeakTextResponse> {
+  try {
+    const { data } = await apiClient.post<SpeakTextResponse>("/api/voice/tts", {
+      text,
+      language: "ar",
+    });
+    return data;
+  } catch (error) {
+    throw toApiError(error);
+  }
+}

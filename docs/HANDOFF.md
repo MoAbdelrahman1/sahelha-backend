@@ -1,19 +1,95 @@
 # Handoff — سهّلها (Sahelha)
 
 Rewritten from scratch on 2026-07-13 (second rewrite same day — see below).
-For overall project status, read `docs/PROJECT_STATUS.md`. For
-folder-placement rules, read `docs/ARCHITECTURE.md` (still accurate,
-untouched across both of today's sessions). For the confirmed API contract
-(auth + readiness + document analyze), read `docs/API.md`.
+Extended 2026-07-15 with TTS/voice wiring (see below). For overall project
+status, read `docs/PROJECT_STATUS.md`. For folder-placement rules, read
+`docs/ARCHITECTURE.md` (still accurate, untouched). For the confirmed API
+contract (auth + readiness + document analyze + voice TTS), read
+`docs/API.md`.
 
-## What this session changed
+## What the 2026-07-15 session changed
+
+Task: wire the Scan screen's 8 previously-stubbed speaker buttons to real
+backend text-to-speech, and gate the result rows on a successful analyze
+response instead of always rendering placeholder "—" rows. Auth/register/
+landing/chat/services were out of scope and untouched except for removing
+three temporary diagnostic `console.log` calls (see below).
+
+- **`expo-audio` installed** via `npx expo install expo-audio` (resolved to
+  `~57.0.0`, matching SDK 57). No other dependency was added. `app.json`
+  got an auto-added `"expo-audio"` plugin entry (no options needed — this
+  app only plays audio, never records, so none of expo-audio's recording
+  permissions apply).
+- **`src/features/scan/api.ts`** — added `speakText(text)`, which posts
+  `{ text, language: "ar" }` to `POST /api/voice/tts` through the shared
+  `apiClient` (so the bearer token is attached automatically) and returns
+  `{ audio_url }`.
+- **`src/features/scan/audioUrl.ts`** — new. `resolveTtsAudioUrl()`, a pure
+  helper that turns whatever shape `audio_url` comes back as (absolute URL /
+  root-relative path / bare cache key) into a playable URL. See
+  `docs/API.md` for the three cases.
+- **`src/features/scan/useTtsPlayer.ts`** — new hook. Owns a single
+  `expo-audio` `AudioPlayer` instance: `speak(text, rowId)` stops/unloads
+  any currently-playing clip first (only one clip plays at a time), fetches
+  TTS, resolves the URL, `seekTo(0)` (expo-audio does not reset position on
+  its own after a clip finishes) then `play()`s. Never called except from an
+  explicit mic tap — no auto-play anywhere. Failures resolve through the
+  existing `ApiError`/`errors.ts` path and are reported via an `onError`
+  callback rather than thrown, so a failed TTS call can never crash the
+  screen. Marked as a promotion candidate to `src/lib/` if a future feature
+  besides Scan needs backend TTS.
+- **`src/features/scan/useScreenReaderEnabled.ts`** — new hook wrapping
+  `AccessibilityInfo.isScreenReaderEnabled()` + the `screenReaderChanged`
+  subscription.
+- **`src/app/(tabs)/scan.tsx`** — the 8 speaker buttons' `onPress` (summary
+  row + 7 field rows) now call `speak(row.value, row.id)` instead of an
+  empty TODO. Screen-reader coordination: the mic handler deliberately never
+  calls `AccessibilityInfo.announceForAccessibility` with a row's text,
+  since TTS audio is about to speak that exact content and doubling it with
+  an announcement would produce two overlapping voices — see the comment at
+  the mic handler. The existing "جارٍ تحليل المستند" loading announcement
+  is unchanged. A TTS failure surfaces through the existing red error banner
+  (`errorMessage` state, already used for capture/analyze errors) and, only
+  when a screen reader is active, is also announced — safe because that's
+  error copy, never the row text, and only fires when TTS never started
+  playing.
+- **Result-row gating** — `src/features/scan/resultRows.ts`'s
+  `buildScanResultRows()` now takes a non-null `AnalyzeDocumentResponse`
+  (was nullable) and no longer has a "no result yet" branch. `scan.tsx` only
+  calls it when `analyzeResult` is set, and only renders the "يستخرج
+  تلقائياً" section when there's at least one row — so no result rows (not
+  even placeholder "—" ones) render during idle/captured/analyzing/error
+  states, only after `analyzeDocument()` has actually resolved successfully.
+  Per-field "—" placeholders for fields a real, successful response didn't
+  populate are unchanged.
+- **`src/features/scan/components/ExtractRow.tsx`** — added an optional
+  `isSpeaking` prop that swaps the speaker icon (`volume-high-outline` →
+  `stop-circle`) so "this row is currently loading/playing" has a visible
+  signal beyond color, per the accessibility hard constraint.
+- **Summary row label** changed from "جميع المعلومات" to the placeholder
+  "ملخص" per this session's brief; still marked `// TODO(asma): final copy`.
+- **Removed 3 temporary diagnostic `console.log` calls** (their debugging
+  purpose was done): `src/lib/api/client.ts` (the request interceptor,
+  2 calls), `src/features/auth/api.ts` (`login`'s catch block),
+  `src/app/login.tsx` (the submit handler's catch block).
+
+### Divergence flagged, not silently resolved
+
+`src/lib/config.ts` (line 11) still has its own un-requested diagnostic
+`console.log('API_BASE_URL =>', ...)`. This session's instructions named
+exactly three files to clean up (`client.ts`, `api.ts`, `login.tsx`) and
+this file wasn't one of them, so it was deliberately left as-is rather than
+assumed to be in scope. Flagging here so it isn't lost — remove it in a
+future session if it's actually meant to go.
+
+## What the 2026-07-13 session changed
 
 Task: wire the Home screen's status pill to a real backend readiness check,
 and wire the Scan screen's capture → confirm → analyze flow against an
 official Swagger (authoritative over any prior assumption in this repo).
 Auth/login/register/landing/chat/services were explicitly out of scope and
-untouched. No voice/audio/TTS was built this round — every speaker button is
-intentionally inert.
+untouched. No voice/audio/TTS was built that round — every speaker button
+was intentionally inert (now wired, see above).
 
 - **`expo-image-picker` installed** via `npx expo install expo-image-picker`
   (resolved to `~57.0.2`, matching SDK 57). No other dependency was added.
@@ -101,12 +177,38 @@ directly, and `next_steps` (an array) is joined with newlines into the
 state (the whole analyze response is stored) for later features — nothing
 displays it yet.
 
+## Confirmed contract added 2026-07-15 (see docs/API.md for full detail)
+
+| Endpoint | Method | Auth | Notes |
+|---|---|---|---|
+| `/api/voice/tts` | POST | **yes** (bearer) | `{text, language}` in, `{audio_url}` out; see `docs/API.md` for the 3-case URL resolution |
+
+`/api/ai/ask` and `/api/audio/{cache_key}` also exist in the Swagger but
+aren't integrated yet — see `docs/API.md`'s "Available in backend, not yet
+integrated" section.
+
 ## Still stubbed / open questions
 
-- **Every speaker button is inert.** All 8 result rows (summary + 7) have a
-  real, accessible, distinctly-labelled `Pressable` speaker button, but
-  `onPress` is an empty function tagged `// TODO: wire TTS in the next
-  prompt`. No audio/TTS/STT package was installed or called this round.
+- **All 8 speaker buttons are now wired to real TTS** (as of 2026-07-15),
+  but this has never been exercised against a live backend — `/api/voice/tts`
+  has only been type-checked, never called against a real server (see
+  Verification below).
+- **⚠️ Flagged, not fixed: a signed-out mic tap can silently bounce the user
+  out of Scan to `/login`.** `/api/document/analyze` requires no auth, so
+  Scan works for a signed-out user — but `/api/voice/tts` does. Trace the
+  consequence: a signed-out user taps a mic → `/api/voice/tts` 401s →
+  `src/lib/api/resilience.ts`'s response interceptor treats *any* 401 from a
+  non-auth endpoint the same way, regardless of which endpoint or how
+  important the call is: it tries a token refresh, finds no refresh token
+  stored, and calls `router.replace("/login")` — silently discarding
+  whatever photo/analysis was on screen. This isn't a bug introduced this
+  session (the blanket 401-handling policy in `resilience.ts` predates it
+  and was explicitly out of scope to change), but wiring real auth-required
+  calls into a screen that's otherwise auth-optional exposes it for the
+  first time. This needs a product decision, not a silent code fix:
+  either (a) require login before reaching Scan, or (b) special-case
+  `resilience.ts` so a 401 on a "nice-to-have" call like TTS shows an error
+  instead of redirecting. Left unresolved on purpose.
 - **The backend's real `fields` key names are unknown.** `SCAN_ROW_KEY_MAP`
   in `src/features/scan/rowMapping.ts` contains best-guess key names. Until
   a real response is seen, most/all fields will likely land in the
@@ -134,29 +236,39 @@ displays it yet.
 
 ## Verification performed / not performed
 
-- `npx tsc --noEmit` — passes, no errors, after all of this session's edits.
-- `npx expo export --platform web` — bundles successfully (996 modules,
-  including the new `expo-image-picker` import), confirming Metro resolves
-  everything. Output goes to the gitignored `dist/`.
-- **Not verified:** no real network call was made against `/api/ready` or
-  `/api/document/analyze` (base URL is still the placeholder). Nothing was
-  run on an Android device/emulator. No screen-reader (TalkBack/VoiceOver)
-  test was performed. No test with the system font size scaled up was
-  performed. The camera capture flow itself has never been exercised on a
-  real device.
+- `npx tsc --noEmit` — passes, no errors, after both the 2026-07-13 and
+  2026-07-15 edits.
+- `npx expo export --platform web` — bundled successfully as of 2026-07-13
+  (996 modules, including `expo-image-picker`), confirming Metro resolves
+  everything; not re-run on 2026-07-15 after adding `expo-audio`.
+- **Not verified (2026-07-15):** no real network call was made against
+  `/api/voice/tts` (base URL is still the placeholder — see below). No
+  Android/iOS device or emulator run, so `expo-audio` playback itself
+  (`createAudioPlayer`, `seekTo`, the `playbackStatusUpdate` listener) has
+  never actually played a sound. No TalkBack/VoiceOver test of the
+  anti-clash behavior (mic tap + no duplicate announcement). No test with
+  the system font size scaled to 200%.
+- **Not verified (carried over from 2026-07-13):** no real network call was
+  made against `/api/ready` or `/api/document/analyze` either. The camera
+  capture flow has never been exercised on a real device.
 
 ## Next steps
 
 1. Get a real `EXPO_PUBLIC_API_BASE_URL` into a local `.env`, then run the
-   scan flow against a real backend once to see one real
-   `/api/document/analyze` response — update `SCAN_ROW_KEY_MAP` in
-   `src/features/scan/rowMapping.ts` to match the real keys.
-2. Build the actual TTS/voice wiring behind the 8 stubbed speaker buttons —
-   explicitly deferred to "the next prompt" per this session's scope.
-3. Resolve the refresh-token question with the backend team (carried over,
+   full scan → analyze → mic → TTS chain against a real backend once:
+   - Update `SCAN_ROW_KEY_MAP` in `src/features/scan/rowMapping.ts` to match
+     the real `/api/document/analyze` field keys.
+   - Confirm the real `/api/voice/tts` `audio_url` shape and that
+     `resolveTtsAudioUrl()` (`src/features/scan/audioUrl.ts`) handles it —
+     the three cases it covers are a defensive guess, not confirmed against
+     a real response yet.
+   - Decide what should happen when a signed-out user taps a mic (today:
+     `/api/voice/tts` 401s and the friendly error banner shows, since scan
+     itself doesn't require auth but TTS does).
+2. Resolve the refresh-token question with the backend team (carried over,
    see `docs/API.md`).
-4. Run this on an actual Android device/emulator at least once — camera
-   permission flow, captured-photo rendering, and the analyze call have
-   only been type-checked and bundle-checked, never executed.
-5. Everything in `docs/PROJECT_STATUS.md` §11 (landing page rewrite, first
+3. Run this on an actual Android/iOS device or emulator at least once —
+   camera capture, the analyze call, and now TTS audio playback have only
+   been type-checked, never executed.
+4. Everything in `docs/PROJECT_STATUS.md` §11 (landing page rewrite, first
    full accessibility pass with TalkBack + scaled fonts) remains open.

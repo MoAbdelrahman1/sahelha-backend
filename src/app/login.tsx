@@ -69,7 +69,6 @@ export default function LoginScreen() {
       // Retarget point: where a successful login sends the user.
       router.replace("/(tabs)");
     } catch (error) {
-      console.log('LOGIN SCREEN CATCH =>', error);
       const message =
         error instanceof ApiError ? error.friendlyMessageAr : "حدث خطأ غير متوقع. يرجى المحاولة مرة أخرى.";
       setFormError(message);
