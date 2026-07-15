@@ -121,36 +121,56 @@ def nearby_offices(lat: float, lng: float, service_id: int | None = None) -> lis
 
 
 @router.post("/api/document/analyze", response_model=DocumentAnalyzeResponse)
+
 async def analyze_document(
     text: str | None = Form(default=None),
     session_id: str | None = Form(default=None),
     file: UploadFile | None = File(default=None),
 ) -> dict[str, Any]:
-    file_text = text or ""
-    original_name = file.filename if file else None
-    mime_type = file.content_type if file else None
+    import tempfile, os
+    from app.services.pipeline import process_document_pipeline
 
-    if file is not None:
-        file_bytes = await file.read()
-        if not file_text and file_bytes:
-            try:
-                file_text = file_bytes.decode("utf-8")
-            except UnicodeDecodeError:
-                file_text = ""
+    if file is None:
+        raise HTTPException(status_code=400, detail="No file uploaded")
 
-    document_type = infer_document_type(file_text, original_name)
-    summary_arabic = summarize_document(document_type, file_text)
-    fields = extract_document_fields(file_text)
-    document_id = store_document(session_id, original_name, mime_type, document_type, summary_arabic, file_text, fields)
+    # Save uploaded file to a temp path so pipeline can read it
+    suffix = os.path.splitext(file.filename or "")[-1] or ".jpg"
+    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+        tmp.write(await file.read())
+        tmp_path = tmp.name
+
+    try:
+        result = process_document_pipeline(tmp_path)
+    finally:
+        os.unlink(tmp_path)
+
+    doc_type = result.get("doc_type", "unknown")
+    summary = result.get("summary", "")
+    entities = result.get("entities", {})
+
+    # Convert entities dict to fields list that frontend expects
+    fields = [
+        {"field_key": k, "field_label_ar": k, "field_value": v}
+        for k, v in entities.items() if v
+    ]
+
+    document_id = store_document(
+        session_id,
+        file.filename,
+        file.content_type,
+        doc_type,
+        summary,
+        result.get("ocr_text", ""),
+        fields,
+    )
 
     return {
-        "document_type": document_type,
-        "summary_arabic": summary_arabic,
+        "document_type": doc_type,
+        "summary_arabic": summary,
         "fields": fields,
-        "next_steps": suggested_next_steps(document_type),
+        "next_steps": suggested_next_steps(doc_type),
         "document_id": document_id,
     }
-
 
 @router.post("/api/document/read", response_model=ReadDocumentResponse)
 def read_document(text: str = Form(...), language: str = Form(default="ar")) -> dict[str, Any]:
