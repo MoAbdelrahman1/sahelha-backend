@@ -5,7 +5,7 @@ from datetime import datetime
 from typing import Any, List, Dict
 
 from app.db import db_connection
-from app.services.ai_service import _get_client, _GROQ_MODEL, SYSTEM_PROMPT
+from app.services.ai_service import SYSTEM_PROMPT, chat_completion
 
 # ---------------------------------------------------------------------------
 # Session handling

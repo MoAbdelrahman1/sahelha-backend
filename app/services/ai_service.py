@@ -30,6 +30,7 @@ import re
 from typing import Any, TypedDict
 import traceback
 
+import requests
 from dotenv import load_dotenv
 
 try:
@@ -45,6 +46,24 @@ load_dotenv()
 # ── Model selection ──────────────────────────────────────────────────────────
 # Override in .env: GROQ_MODEL=llama-3.3-70b-versatile for higher accuracy
 _GROQ_MODEL: str = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant")
+
+# ── Local AI (Ollama) ────────────────────────────────────────────────────────
+# A locally-run Ollama server is the DEFAULT provider for every AI call in
+# this module (document analysis and, via chat_completion(), the AI
+# assistant's Q&A) — documents are analyzed on this machine and never sent to
+# a third party unless AI_PREFER_CLOUD=true, or the local server is
+# unreachable, in which case Groq is used as the fallback (and the old
+# regex-only heuristic below that, if Groq is also unavailable).
+#
+# Requires Ollama running locally (https://ollama.com) with the configured
+# model pulled: `ollama pull <OLLAMA_MODEL>`. Arabic-capable model choices:
+# "qwen2.5:7b" (default — good multilingual quality/speed balance),
+# "aya-expanse:8b" (Cohere's Aya, tuned specifically for non-English
+# languages including Arabic), "llama3.1:8b".
+_OLLAMA_BASE_URL: str = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434").rstrip("/")
+_OLLAMA_MODEL: str = os.getenv("OLLAMA_MODEL", "qwen2.5:7b")
+_OLLAMA_TIMEOUT_SECONDS: float = float(os.getenv("OLLAMA_TIMEOUT_SECONDS", "120"))
+_AI_PREFER_CLOUD: bool = os.getenv("AI_PREFER_CLOUD", "false").strip().lower() in {"1", "true", "yes"}
 
 
 # ── Output schema ────────────────────────────────────────────────────────────
@@ -162,6 +181,80 @@ def _get_client() -> "Groq":
         _CLIENT = Groq(api_key=api_key)
 
     return _CLIENT
+
+
+def _ollama_chat_completion(
+    messages: list[dict[str, str]],
+    *,
+    temperature: float = 0.1,
+    max_tokens: int = 1024,
+    json_mode: bool = False,
+) -> str:
+    """Call a locally-running Ollama server's native chat API.
+
+    Raises on any connection failure or non-200 response (Ollama not
+    running, model not pulled, etc.) so callers can fall back to Groq/
+    heuristics rather than silently treating an empty/error response as a
+    real answer.
+    """
+    payload: dict[str, Any] = {
+        "model": _OLLAMA_MODEL,
+        "messages": messages,
+        "stream": False,
+        "options": {"temperature": temperature, "num_predict": max_tokens},
+    }
+    if json_mode:
+        payload["format"] = "json"
+
+    response = requests.post(
+        f"{_OLLAMA_BASE_URL}/api/chat",
+        json=payload,
+        timeout=_OLLAMA_TIMEOUT_SECONDS,
+    )
+    response.raise_for_status()
+    data = response.json()
+    return (data.get("message", {}).get("content") or "").strip()
+
+
+def chat_completion(
+    messages: list[dict[str, str]],
+    *,
+    temperature: float = 0.1,
+    max_tokens: int = 1024,
+    json_mode: bool = False,
+) -> str:
+    """Run one chat completion, preferring the local Ollama model.
+
+    Provider order: local Ollama (unless AI_PREFER_CLOUD=true) → Groq. Used
+    by both document analysis (below) and the AI assistant's Q&A
+    (app/services/ai_chat_service.py) so the "local by default, cloud as an
+    explicit override" policy applies everywhere this app calls an LLM, not
+    just document analysis.
+
+    Raises if every configured path fails — callers that have their own
+    non-LLM fallback (e.g. analyze_document_text's heuristic extraction)
+    should catch that themselves; callers with no such fallback (the AI
+    assistant) are meant to let it surface as a 500.
+    """
+    if not _AI_PREFER_CLOUD:
+        try:
+            return _ollama_chat_completion(
+                messages, temperature=temperature, max_tokens=max_tokens, json_mode=json_mode
+            )
+        except Exception as exc:
+            print(f"[AI SERVICE] Local Ollama unavailable ({exc}); falling back to Groq")
+
+    client = _get_client()
+    kwargs: dict[str, Any] = {
+        "model": _GROQ_MODEL,
+        "temperature": temperature,
+        "max_tokens": max_tokens,
+        "messages": messages,
+    }
+    if json_mode:
+        kwargs["response_format"] = {"type": "json_object"}
+    completion = client.chat.completions.create(**kwargs)
+    return (completion.choices[0].message.content or "").strip()
 
 
 # ── Heuristic / fallback helpers ─────────────────────────────────────────────
@@ -405,12 +498,22 @@ def _coerce_result(payload: dict[str, Any], ocr_text: str) -> DocumentAnalysisRe
 
 # ── Public API ───────────────────────────────────────────────────────────────
 
+def _parse_json_payload(raw: str) -> dict[str, Any]:
+    # Strip stray markdown fences that some models emit despite JSON mode
+    cleaned = re.sub(r"```(?:json)?|```", "", raw or "{}").strip()
+    parsed: Any = json.loads(cleaned or "{}")
+    if not isinstance(parsed, dict):
+        raise ValueError(f"Expected JSON object, got {type(parsed).__name__}")
+    return parsed
+
+
 def analyze_document_text(ocr_text: str) -> dict[str, Any]:
     """
-    Send *ocr_text* to Groq (LLaMA) for structured document analysis.
+    Send *ocr_text* to an LLM (local Ollama by default, Groq as override/
+    fallback — see chat_completion()) for structured document analysis.
 
     The function always returns a complete :class:`DocumentAnalysisResult`-
-    compatible dict.  If the API key is missing, the request fails, or the
+    compatible dict.  If no provider is reachable/configured, or the
     response cannot be parsed, it falls back silently to heuristic extraction
     so the pipeline never crashes due to an LLM outage.
 
@@ -428,44 +531,29 @@ def analyze_document_text(ocr_text: str) -> dict[str, Any]:
     if not normalized:
         return dict(_fallback_analysis(ocr_text))
     print(f"[AI SERVICE] OCR text length: {len(normalized)}")
-    print(f"[AI SERVICE] Using model: {_GROQ_MODEL}")
-    print(f"[AI SERVICE] API key set: {bool(os.getenv('GROQ_API_KEY'))}")
-
+    print(f"[AI SERVICE] Provider preference: {'cloud (Groq)' if _AI_PREFER_CLOUD else f'local (Ollama: {_OLLAMA_MODEL})'}")
 
     try:
-        client = _get_client()
-        completion = client.chat.completions.create(
-            model=_GROQ_MODEL,
-            temperature=0.1,        # low temperature → more deterministic extraction
-            max_tokens=1024,
-            response_format={"type": "json_object"},
-            messages=[
+        raw = chat_completion(
+            [
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": normalized},
             ],
+            temperature=0.1,        # low temperature → more deterministic extraction
+            max_tokens=1024,
+            json_mode=True,
         )
-
-        raw: str = completion.choices[0].message.content or "{}"
-
-        # Strip stray markdown fences that some models emit despite json_object mode
-        raw = re.sub(r"```(?:json)?|```", "", raw).strip()
-
-        parsed: Any = json.loads(raw)
-        if not isinstance(parsed, dict):
-            raise ValueError(f"Expected JSON object, got {type(parsed).__name__}")
-
+        parsed = _parse_json_payload(raw)
         return dict(_coerce_result(parsed, normalized))
 
     except Exception as e:
-    
-
-        print("\n========== GROQ ERROR ==========")
+        print("\n========== AI ANALYSIS ERROR ==========")
         print(type(e).__name__)
         print(str(e))
         traceback.print_exc()
-        print("================================\n")
+        print("========================================\n")
 
     return dict(_fallback_analysis(normalized))
 
 
-__all__ = ["analyze_document_text", "DocumentAnalysisResult", "SYSTEM_PROMPT"]
+__all__ = ["analyze_document_text", "chat_completion", "DocumentAnalysisResult", "SYSTEM_PROMPT"]
