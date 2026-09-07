@@ -1,0 +1,257 @@
+# API Contract
+
+Confirmed against the official Swagger for the real backend (2026-07-13,
+extended same day with the readiness-check and document-analyze endpoints;
+extended again on 2026-07-15 with the text-to-speech endpoint). This is
+authoritative — if any other doc or code comment in this repo disagrees with
+what's written here, this file wins.
+
+## Auth endpoints
+
+Implemented in `src/features/auth/api.ts`.
+
+All three endpoints ARE mounted with an `/api` prefix. (An earlier audit,
+`docs/PROJECT_STATUS.md` §8, claimed the real backend has no `/api` prefix
+and that every call in this codebase would 404 — that claim is superseded by
+this Swagger and is now known to be wrong. Do not act on it.)
+
+## POST /api/auth/register
+
+Auth required: no.
+
+Request body (`application/json`):
+```json
+{
+  "email": "string",
+  "password": "string",
+  "full_name": "string",
+  "phone": "string"
+}
+```
+
+Response `200` (`application/json`):
+```json
+{
+  "access_token": "string",
+  "refresh_token": "string",
+  "token_type": "bearer",
+  "user": {
+    "id": 0,
+    "email": "string",
+    "full_name": "string",
+    "phone": "string",
+    "created_at": "string"
+  }
+}
+```
+
+Response `422` (validation error):
+```json
+{
+  "detail": [
+    { "loc": ["body", "email"], "msg": "string", "type": "string" }
+  ]
+}
+```
+
+## POST /api/auth/login
+
+Auth required: no.
+
+Request body (`application/json`):
+```json
+{
+  "email": "string",
+  "password": "string"
+}
+```
+
+Response `200`: identical shape to register's `200` above.
+
+Response `422`: identical shape to register's `422` above.
+
+## GET /api/auth/me
+
+Auth required: yes — `Authorization: Bearer <access_token>`. Attached
+automatically by the request interceptor in `src/lib/api/client.ts`; callers
+don't need to set it themselves.
+
+Parameters: none.
+
+Response `200` (`application/json`) — the bare user object, **not** wrapped
+in a `user` key:
+```json
+{
+  "id": 0,
+  "email": "string",
+  "full_name": "string",
+  "phone": "string",
+  "created_at": "string"
+}
+```
+
+No `422` is documented for this endpoint (no request body to validate).
+
+## Error handling
+
+- `422` → `src/lib/api/errors.ts`'s `toApiError` reads `response.data.detail`
+  (the array above), maps each entry's `loc` field name to its existing
+  Arabic label (email/password/full_name/phone/file), and returns an
+  `ApiError` naming the offending field(s) — e.g.
+  `"يرجى التحقق من: البريد الإلكتروني"`. Falls back to a generic Arabic
+  message if `detail` is missing, empty, or names no recognized field.
+- `401` → `"البريد الإلكتروني أو كلمة المرور غير صحيحة."` (login/register), or
+  triggers the refresh-and-replay flow for any other authenticated request
+  (see UNCONFIRMED section below).
+- Network error / timeout / `5xx` → generic Arabic network/server message,
+  retried automatically with backoff (see `src/lib/api/resilience.ts`).
+
+## GET /api/ready
+
+Implemented in `src/features/home/api.ts` (`checkBackendReady`), used by
+`src/features/home/components/StatusPill.tsx`.
+
+Auth required: no.
+
+Parameters: none.
+
+Response `200` (`application/json`): an arbitrary, undocumented object (e.g.
+`{ "additionalProp1": {} }`). **Do not parse the body.** The entire contract
+is the HTTP status: `200` means the backend is reachable; any other status,
+or a network error/timeout, means it isn't.
+
+No other response codes are documented.
+
+## POST /api/document/analyze
+
+Implemented in `src/features/scan/api.ts` (`analyzeDocument`), used by
+`src/app/(tabs)/scan.tsx`.
+
+Auth required: no (no Authorization header is required by this endpoint; the
+shared `apiClient` request interceptor attaches one anyway if a token happens
+to be stored, which is harmless and ignored by the backend).
+
+Request body: `multipart/form-data` with these parts:
+- `file` — the captured photo (the only part this app sends)
+- `text` — optional, omitted
+- `session_id` — optional, omitted
+
+Response `200` (`application/json`):
+```json
+{
+  "document_type": "string",
+  "summary_arabic": "string",
+  "fields": [ { "additionalProp1": "string" } ],
+  "next_steps": ["string"],
+  "document_id": 0
+}
+```
+`fields` is an **array of objects with backend-chosen keys** — the Swagger's
+`additionalProp1/2/3` placeholders mean "arbitrary key names", not literal
+ones. See `src/features/scan/fields.ts` (flattening) and
+`src/features/scan/rowMapping.ts` (the single edit point for mapping real
+backend keys onto this app's 7 fixed rows) for how this app handles that.
+
+Response `422` (validation error): identical `detail` array shape to the
+auth endpoints above.
+
+**`/api/documents/upload` also exists but is deliberately NOT used here** —
+it only returns `{doc_id, status, message}` with no analysis, so calling it
+from the scan screen would upload the same image twice for no benefit. The
+scan screen calls `/api/document/analyze` only.
+
+### Client-side timeout and retry behavior (added 2026-07-27)
+
+Backend OCR+LLM processing for this endpoint can take 20-40s, well past the
+app-wide default `API_TIMEOUT_MS` (15s, `src/lib/config.ts`). `analyzeDocument()`
+in `src/features/scan/api.ts` therefore sets `timeout: 60000` (60s) on this
+call only — every other endpoint keeps the 15s global default.
+
+This call also does not participate in the shared retry-with-backoff or
+fail-queue auto-redrive (`src/lib/api/resilience.ts`'s `__skipRetry` flag,
+used only here): a retry would just resubmit the same 20-40s of backend work
+rather than a cheap idempotent request, and was the actual cause of a
+previously-seen pattern of repeated cancelled requests in the cloudflared
+tunnel logs. It gets exactly one attempt per user tap.
+
+On failure, three outcomes now surface distinct Arabic messages instead of
+one generic string:
+- A real client-side timeout (`ECONNABORTED`, no HTTP response ever
+  received) → `ANALYZE_TIMEOUT_ERROR_AR`.
+- Any other no-response failure (DNS/connection refused/etc.) →
+  `ANALYZE_NETWORK_ERROR_AR` (currently the same text as the app-wide
+  `FRIENDLY_NETWORK_ERROR_AR`, re-exported under its own name for this call
+  site — see the divergence noted in `docs/HANDOFF.md`).
+- A non-2xx HTTP response → the existing shared `toApiError()` per-status
+  branches (401/422/400/5xx), unchanged.
+
+**Known residual limitation:** even with the 60s budget, if backend
+processing ever exceeds it, the client aborts and shows the timeout message
+while the backend may still finish and log `200 OK` moments later — a
+client-aborted HTTP request has no way to retroactively receive that late
+response. Fixing this fully would need a backend contract change (job-status
+polling or a push mechanism), out of scope for this client-only change.
+
+## POST /api/voice/tts
+
+Implemented in `src/features/scan/api.ts` (`speakText`), used by the
+speaker/mic buttons on `src/app/(tabs)/scan.tsx` via
+`src/features/scan/useTtsPlayer.ts`.
+
+Auth required: **yes** — `Authorization: Bearer <access_token>`. Attached
+automatically by the request interceptor in `src/lib/api/client.ts`; callers
+don't need to set it themselves, but they must call it through `apiClient`
+(never a raw client) for that to happen.
+
+Request body (`application/json`):
+```json
+{
+  "text": "string",
+  "language": "ar"
+}
+```
+
+Response `200` (`application/json`):
+```json
+{
+  "audio_url": "string"
+}
+```
+
+Response `422` (validation error): identical `detail` array shape to the
+auth/analyze endpoints above.
+
+### Resolving `audio_url`
+
+`audio_url` is not guaranteed to be one fixed shape. `src/features/scan/audioUrl.ts`
+(`resolveTtsAudioUrl`) handles all three cases seen from this backend:
+1. Starts with `http` → already an absolute, playable URL — used as-is.
+2. Starts with `/` (e.g. `/uploads/1/tts_x.wav`) → a root-relative path —
+   prefixed with `API_BASE_URL` (`src/lib/config.ts`).
+3. Anything else → treated as a bare cache key and resolved through
+   `GET /api/audio/{cache_key}` (see below) by building
+   `${API_BASE_URL}/api/audio/${audio_url}`.
+
+## Available in backend, not yet integrated
+
+These endpoints exist in the Swagger but nothing in this app calls them yet:
+
+- **`POST /api/ai/ask`** — not wired into any screen this session.
+- **`GET /api/audio/{cache_key}`** — not called directly by app code; it's
+  only ever reached indirectly, as the URL built by `resolveTtsAudioUrl()`
+  case 3 above when a TTS response returns a bare cache key instead of a
+  full URL.
+
+## UNCONFIRMED / MISSING
+
+- **No refresh-token endpoint exists in this Swagger.** Only `register`,
+  `login`, and `me` are documented. `src/lib/api/resilience.ts` (lines
+  ~27–40) still calls `POST /api/auth/refresh` on every 401 from a
+  non-auth endpoint, assuming it returns the same
+  `{access_token, refresh_token, token_type, user}` shape as login/register.
+  This was deliberately left untouched this session per instruction — it is
+  unverified against the real backend and may 404. Until a real refresh
+  contract is confirmed, **any 401 on an authenticated request will cause an
+  immediate logout** (the refresh call fails, tokens are cleared, and the
+  user is bounced to `/login`) rather than a silent, transparent refresh.
+  This needs a real answer from the backend team before it can be trusted.
