@@ -160,6 +160,38 @@ it only returns `{doc_id, status, message}` with no analysis, so calling it
 from the scan screen would upload the same image twice for no benefit. The
 scan screen calls `/api/document/analyze` only.
 
+### Client-side timeout and retry behavior (added 2026-07-27)
+
+Backend OCR+LLM processing for this endpoint can take 20-40s, well past the
+app-wide default `API_TIMEOUT_MS` (15s, `src/lib/config.ts`). `analyzeDocument()`
+in `src/features/scan/api.ts` therefore sets `timeout: 60000` (60s) on this
+call only — every other endpoint keeps the 15s global default.
+
+This call also does not participate in the shared retry-with-backoff or
+fail-queue auto-redrive (`src/lib/api/resilience.ts`'s `__skipRetry` flag,
+used only here): a retry would just resubmit the same 20-40s of backend work
+rather than a cheap idempotent request, and was the actual cause of a
+previously-seen pattern of repeated cancelled requests in the cloudflared
+tunnel logs. It gets exactly one attempt per user tap.
+
+On failure, three outcomes now surface distinct Arabic messages instead of
+one generic string:
+- A real client-side timeout (`ECONNABORTED`, no HTTP response ever
+  received) → `ANALYZE_TIMEOUT_ERROR_AR`.
+- Any other no-response failure (DNS/connection refused/etc.) →
+  `ANALYZE_NETWORK_ERROR_AR` (currently the same text as the app-wide
+  `FRIENDLY_NETWORK_ERROR_AR`, re-exported under its own name for this call
+  site — see the divergence noted in `docs/HANDOFF.md`).
+- A non-2xx HTTP response → the existing shared `toApiError()` per-status
+  branches (401/422/400/5xx), unchanged.
+
+**Known residual limitation:** even with the 60s budget, if backend
+processing ever exceeds it, the client aborts and shows the timeout message
+while the backend may still finish and log `200 OK` moments later — a
+client-aborted HTTP request has no way to retroactively receive that late
+response. Fixing this fully would need a backend contract change (job-status
+polling or a push mechanism), out of scope for this client-only change.
+
 ## POST /api/voice/tts
 
 Implemented in `src/features/scan/api.ts` (`speakText`), used by the

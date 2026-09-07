@@ -1,11 +1,100 @@
 # Handoff — سهّلها (Sahelha)
 
 Rewritten from scratch on 2026-07-13 (second rewrite same day — see below).
-Extended 2026-07-15 with TTS/voice wiring (see below). For overall project
-status, read `docs/PROJECT_STATUS.md`. For folder-placement rules, read
-`docs/ARCHITECTURE.md` (still accurate, untouched). For the confirmed API
-contract (auth + readiness + document analyze + voice TTS), read
-`docs/API.md`.
+Extended 2026-07-15 with TTS/voice wiring (see below). Extended 2026-07-27
+with document-analyze timeout/retry/error-message fixes (see below). For
+overall project status, read `docs/PROJECT_STATUS.md`. For folder-placement
+rules, read `docs/ARCHITECTURE.md` (still accurate, untouched). For the
+confirmed API contract (auth + readiness + document analyze + voice TTS),
+read `docs/API.md`.
+
+## What the 2026-07-27 session changed
+
+Task: fix a document-analyze failure mode where the axios request timeout
+(the app-wide default, ~15s per `src/lib/config.ts`) was shorter than the
+backend's actual OCR+LLM processing time (20-40s) — the client gave up and
+showed a "cannot connect" error while cloudflared/backend logs showed the
+same request completing with `200 OK` moments later ("Incoming request
+ended abruptly: context canceled" in the tunnel logs). The endpoint itself
+(`/api/document/analyze`, `/api` prefix) is unchanged — Swagger is still the
+source of truth. Not touched: git, babel, metro, NativeWind config, any
+other endpoint's contract.
+
+- **`src/features/scan/api.ts`** — `analyzeDocument()`'s request now sets
+  `timeout: 60000` (60s) scoped to this one call only (an `AxiosRequestConfig`
+  override) — every other endpoint keeps the 15s app-wide `API_TIMEOUT_MS`
+  default untouched. Also sets `__skipRetry: true` (new — see
+  `resilience.ts` below) so this call gets exactly one attempt per user tap;
+  a retry here would just resubmit the same 20-40s of backend work, which is
+  what was producing the repeated-cancelled-request pattern in the
+  cloudflared logs. The catch block now distinguishes three outcomes instead
+  of one generic string: a real client-side timeout
+  (`axios.isAxiosError(error) && !error.response && error.code ===
+  'ECONNABORTED'`) throws a new `ANALYZE_TIMEOUT_ERROR_AR`-backed `ApiError`;
+  any other no-response failure falls through to the existing shared
+  `toApiError()` (re-exported here as `ANALYZE_NETWORK_ERROR_AR` for
+  call-site clarity — see divergence below); any non-2xx response goes
+  through `toApiError()`'s existing per-status branches (401/422/400/5xx),
+  which were already distinct. Both new Arabic strings are TODO(Asma)-marked
+  placeholders, same convention as the rest of this file.
+- **`src/lib/api/resilience.ts`** — added an opt-in `__skipRetry` flag on
+  `RetryableConfig`. When set, a request skips both the retry-with-backoff
+  loop AND `enqueueFailedRequest` (the fail queue's
+  auto-redrive-on-reconnect, see `failQueue.ts`) — without also skipping the
+  queue, a retry-exhausted analyze call would sit in the queue and silently
+  refire itself the next time connectivity flapped, defeating the
+  "single request per user action" requirement. Opt-in and currently used by
+  nothing except `analyzeDocument`; every other call (login, register,
+  ready, TTS, refresh) keeps its existing retry-with-backoff behavior
+  unchanged.
+- **`src/app/(tabs)/scan.tsx`** — the "analyzing" loading `View` now has
+  `accessible`, `accessibilityRole="progressbar"`, and a new
+  `ANALYZING_ACCESSIBILITY_LABEL_AR` ("جارٍ تحليل المستند" — TODO(Asma)
+  placeholder) accessibility label, kept separate from the existing visible
+  `ANALYZING_TEXT_AR` copy (unchanged, including its "…" — an
+  accessibility label is read as one utterance and doesn't need it). No
+  font-scaling was disabled (none was present before either). The
+  confirm/retake buttons' existing 64pt tap targets are untouched. The catch
+  block itself needed no changes — it already does `error instanceof
+  ApiError ? error.friendlyMessageAr : ANALYZE_FAILED_FALLBACK_AR`, so the
+  new distinct messages from `analyzeDocument()` surface automatically.
+
+### Divergence flagged, not silently resolved
+
+- **The same generic-network-error conflation this task fixed for
+  document-analyze still exists everywhere else.** `src/lib/api/errors.ts`'s
+  `toApiError()` — used by login, register, `/api/ready`, and TTS — still
+  returns the identical `FRIENDLY_NETWORK_ERROR_AR` for both a real timeout
+  (`ECONNABORTED`) and any other connection failure (DNS, refused, etc.),
+  exactly the ambiguity this session was asked to resolve, but only for
+  `/api/document/analyze` ("scope it to this call" was explicit in this
+  session's brief). Worth revisiting globally in a future session if the
+  same "was it a timeout or a real outage" ambiguity turns out to matter for
+  those endpoints too.
+- **Known residual limitation, not fixable client-side alone:** even with
+  the 60s timeout, if backend processing ever exceeds that budget, the
+  client aborts and shows the new timeout message while the backend may
+  still complete and log `200 OK` moments later (per this task's brief) — a
+  client-aborted HTTP request has no way to retroactively deliver that late
+  response to a UI that already moved on. A real fix (job-status polling, or
+  a websocket/SSE push) needs a backend contract change, out of scope here.
+- **`ANALYZE_FAILED_FALLBACK_AR` in `scan.tsx`** is now effectively
+  unreachable in normal operation — every `analyzeDocument()` failure path
+  throws an `ApiError`, so `error instanceof ApiError` is always true there
+  now. Left in place as a defensive fallback (a genuinely unexpected
+  non-`ApiError` throw should still show something) rather than removed.
+
+### Verification performed / not performed (2026-07-27)
+
+- `npx tsc --noEmit` — passes, no errors, after this session's edits.
+- **Not verified:** no real network call was exercised against a slow
+  (20-40s) backend response to confirm the 60s timeout and new
+  timeout-specific message actually fire as designed — needs a real
+  device/emulator run against the live backend with a genuinely slow
+  document. Also not exercised: confirming a timed-out analyze call does
+  NOT appear in the fail queue afterward (`getQueuedRequestCount()`).
+- Not run: TalkBack test of the new `accessibilityRole="progressbar"` +
+  `accessibilityLabel` on the analyzing indicator.
 
 ## What the 2026-07-15 session changed
 
