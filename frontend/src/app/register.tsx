@@ -97,7 +97,7 @@ export default function RegisterScreen() {
 
   return (
     <AuthScreenShell>
-      <Text className="mb-7 text-right text-4xl font-extrabold text-ink">إنشاء حساب جديد</Text>
+      <Text className="font-cairoExtraBold mb-7 text-right text-4xl text-ink">إنشاء حساب جديد</Text>
 
       <ValidatedField
         key={`name-${formKey}`}
@@ -173,19 +173,19 @@ export default function RegisterScreen() {
       <Pressable
         onPress={onSubmit}
         disabled={loading}
-        className={`min-h-[56px] items-center justify-center rounded-full bg-brandBlueDeep px-6 py-4 active:opacity-80 ${
+        className={`min-h-[56px] items-center justify-center rounded-full bg-primary px-6 py-4 active:opacity-80 ${
           loading ? "opacity-60" : ""
         }`}
       >
         {loading ? (
           <ActivityIndicator color="#FFFFFF" />
         ) : (
-          <Text className="text-2xl font-bold text-white">إنشاء حساب</Text>
+          <Text className="font-plexBold text-2xl text-white">إنشاء حساب</Text>
         )}
       </Pressable>
 
       <Pressable onPress={() => router.push("/login")} className="mt-6 min-h-[56px] items-center justify-center">
-        <Text className="text-right text-xl font-bold text-brandBlueDeep">لديك حساب بالفعل؟ تسجيل الدخول</Text>
+        <Text className="font-plexBold text-right text-xl text-primary">لديك حساب بالفعل؟ تسجيل الدخول</Text>
       </Pressable>
     </AuthScreenShell>
   );

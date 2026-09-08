@@ -36,8 +36,10 @@ export default function LandingScreen() {
   // Retarget point: change this route for the header/final-CTA "Get Started"
   // buttons in one place.
   const goToApp = () => router.push("/(tabs)");
-  // Retarget point: where the hero's "سجل الآن" CTA sends the user.
-  const goToLogin = () => router.push("/login");
+  // Retarget point: where the hero's "سجل الآن" CTA sends the user. Goes
+  // through the accessibility-setup onboarding wizard first (its own last
+  // step then routes to /login) rather than straight to /login.
+  const goToLogin = () => router.push("/onboarding");
 
   return (
     <View className="flex-1 bg-white">
