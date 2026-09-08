@@ -1,13 +1,19 @@
 import React from "react";
 import { KeyboardAvoidingView, Platform, ScrollView, View } from "react-native";
 
-// Shared shell for the login/register screens: soft-blue background, white
-// card centered on screen, scrollable + keyboard-avoiding so the fields stay
-// reachable when the keyboard is open.
+import { useAppearance } from "@/store/appearanceStore";
+import { palette } from "@/styles/theme";
+
+// Shared shell for the login/register screens: plain token-driven background,
+// bordered card centered on screen, scrollable + keyboard-avoiding so the
+// fields stay reachable when the keyboard is open.
 export function AuthScreenShell({ children }: { children: React.ReactNode }) {
+  const { highContrast } = useAppearance();
+  const c = palette(highContrast);
+
   return (
     <KeyboardAvoidingView
-      className="flex-1 bg-brandBlue"
+      style={{ flex: 1, backgroundColor: c.pageBg }}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <ScrollView
@@ -20,7 +26,19 @@ export function AuthScreenShell({ children }: { children: React.ReactNode }) {
         }}
         keyboardShouldPersistTaps="handled"
       >
-        <View className="w-full max-w-[440px] rounded-card bg-white p-7 shadow-sm">{children}</View>
+        <View
+          style={{
+            width: "100%",
+            maxWidth: 440,
+            borderRadius: 18,
+            borderWidth: 2,
+            borderColor: c.border,
+            backgroundColor: c.pageBg,
+            padding: 28,
+          }}
+        >
+          {children}
+        </View>
       </ScrollView>
     </KeyboardAvoidingView>
   );
