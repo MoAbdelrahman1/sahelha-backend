@@ -41,11 +41,12 @@
         "expo-image-picker",
         {
           "cameraPermission": "يحتاج التطبيق إلى الوصول إلى الكاميرا لتصوير المستندات الحكومية.",
-          "photosPermission": false,
+          "photosPermission": "يحتاج التطبيق إلى الوصول إلى الصور لاختيار صورة مستند من المعرض.",
           "microphonePermission": false
         }
       ],
-      "expo-audio"
+      "expo-audio",
+      "expo-splash-screen"
     ],
     "extra": {
       "router": {},
