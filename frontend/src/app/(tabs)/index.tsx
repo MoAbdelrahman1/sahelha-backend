@@ -1,60 +1,67 @@
 import React from "react";
-import { ScrollView, Text, View } from "react-native";
+import { ScrollView, Text, View, Pressable } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 
-import { HomeHeader } from "@/features/home/components/HomeHeader";
-import { StatusPill } from "@/features/home/components/StatusPill";
-import { VoiceButton } from "@/features/home/components/VoiceButton";
-import { FeatureCard } from "@/features/home/components/FeatureCard";
-import { HOME_FEATURES } from "@/features/home/data";
+import { AppHeader } from "@/components/ui/AppHeader";
+import { DocumentCard } from "@/components/common/DocumentCard";
+import { useAppearance } from "@/store/appearanceStore";
+import { useDocuments } from "@/store/documentsStore";
+import { palette } from "@/styles/theme";
 
-// Landing tab of the (tabs) group — login/register both `router.replace("/(tabs)")`
-// on success, and this "index" route is what that bare group path resolves to.
-//
-// RTL note: hand-mirrored (row-reverse containers + right-aligned text) like
-// the rest of the app, not via I18nManager.
+// Home = the single most important screen: one huge, fixed, always-reachable
+// "scan a new document" action, plus the document list, each item fully
+// tappable — matches SAHELHA_DESIGN_BRIEF.md §6.3 exactly (no dense grid of
+// secondary features competing with it).
 export default function HomeScreen() {
   const router = useRouter();
+  const { highContrast } = useAppearance();
+  const { documents } = useDocuments();
+  const c = palette(highContrast);
 
   return (
-    <ScrollView
-      className="flex-1 bg-white"
-      contentContainerStyle={{ padding: 20, paddingBottom: 40, gap: 24 }}
-    >
-      <HomeHeader />
+    <View style={{ flex: 1, backgroundColor: c.pageBg }}>
+      <AppHeader title="مستنداتي" />
+      <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40, gap: 16 }}>
+        <Pressable
+          onPress={() => router.push("/camera")}
+          accessibilityRole="button"
+          accessibilityLabel="مسح مستند جديد"
+          style={{
+            minHeight: 64,
+            flexDirection: "row-reverse",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 10,
+            borderRadius: 18,
+            backgroundColor: c.primaryBg,
+            paddingVertical: 18,
+          }}
+        >
+          <Ionicons name="add" size={24} color={c.primaryFg} />
+          <Text style={{ fontFamily: "Cairo_800ExtraBold", fontSize: 18, color: c.primaryFg }}>
+            مسح مستند جديد
+          </Text>
+        </Pressable>
 
-      <StatusPill />
-
-      <VoiceButton
-        // TODO: wire to the real voice-assistant flow once it exists.
-        onPress={() => {}}
-      />
-
-      <View>
-        <Text className="mb-4 text-right text-3xl font-extrabold text-ink">
-          الميزات الرئيسية
+        <Text style={{ fontFamily: "Cairo_800ExtraBold", fontSize: 16, color: c.secondary, textAlign: "right" }}>
+          مستنداتك
         </Text>
 
-        <View style={{ gap: 16 }}>
-          {HOME_FEATURES.map((feature) => (
-            <FeatureCard
-              key={feature.id}
-              feature={feature}
-              onPress={() => {
-                if (feature.route) {
-                  router.push(feature.route);
-                  return;
-                }
-                // TODO: navigate to this feature's screen once it exists.
-              }}
-            />
-          ))}
-        </View>
-      </View>
-
-      <Text className="text-center text-lg font-semibold text-ink">
-        اضغط مطولاً على أي زر لسماع وصفه
-      </Text>
-    </ScrollView>
+        {documents.length === 0 ? (
+          <View style={{ paddingVertical: 40, alignItems: "center", gap: 10 }}>
+            <Text style={{ fontFamily: "IBMPlexSansArabic_600SemiBold", fontSize: 16, color: c.secondary, textAlign: "center" }}>
+              لسه معندكش مستندات. اضغط على "مسح مستند جديد" عشان تبدأ.
+            </Text>
+          </View>
+        ) : (
+          <View style={{ gap: 10 }}>
+            {documents.map((doc) => (
+              <DocumentCard key={doc.id} doc={doc} onPress={() => router.push(`/document/${doc.id}`)} />
+            ))}
+          </View>
+        )}
+      </ScrollView>
+    </View>
   );
 }

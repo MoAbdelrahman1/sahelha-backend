@@ -1,58 +1,19 @@
-import { Ionicons } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
 
-const ACTIVE_COLOR = "#0B5FFF";
-const INACTIVE_COLOR = "#6B7280";
+import { BottomTabBar } from "@/components/common/BottomTabBar";
 
+// Home · Archive · Reminders · Settings + a floating center mic button (see
+// BottomTabBar) — matches SPRINT_PLAN.md §5's navigation decision. Scan/Camera
+// and the AI assistant are stack routes reached from Home/Document Detail, not
+// tabs — the backend's /api/ai/ask is scoped to a document_id, so it never
+// made sense as a standalone tab.
 export default function TabsLayout() {
   return (
-    <Tabs
-      screenOptions={{
-        headerShown: false,
-        tabBarActiveTintColor: ACTIVE_COLOR,
-        tabBarInactiveTintColor: INACTIVE_COLOR,
-        tabBarStyle: { height: 72, paddingBottom: 10, paddingTop: 8 },
-        tabBarLabelStyle: { fontSize: 13 },
-      }}
-    >
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: "الرئيسية",
-          tabBarAccessibilityLabel: "الرئيسية",
-          tabBarIcon: ({ color }) => <Ionicons name="home" size={28} color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="chat"
-        options={{
-          title: "المساعد",
-          tabBarAccessibilityLabel: "المساعد",
-          tabBarIcon: ({ color }) => (
-            <Ionicons name="chatbubble-ellipses" size={28} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="scan"
-        options={{
-          title: "تصوير مستند",
-          tabBarAccessibilityLabel: "تصوير مستند",
-          tabBarIcon: ({ color }) => (
-            <Ionicons name="camera" size={28} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="services"
-        options={{
-          title: "الخدمات",
-          tabBarAccessibilityLabel: "الخدمات",
-          tabBarIcon: ({ color }) => (
-            <Ionicons name="grid" size={28} color={color} />
-          ),
-        }}
-      />
+    <Tabs screenOptions={{ headerShown: false }} tabBar={(props) => <BottomTabBar {...props} />}>
+      <Tabs.Screen name="index" />
+      <Tabs.Screen name="archive" />
+      <Tabs.Screen name="reminders" />
+      <Tabs.Screen name="settings" />
     </Tabs>
   );
 }
