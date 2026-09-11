@@ -15,7 +15,9 @@ from app.services.ai_chat_service import ask_ai, fetch_history, get_or_create_se
 router = APIRouter()
 
 
-def _get_owned_document_text(doc_id: int, user_id: int) -> str:
+def _get_owned_document_text(doc_id: int | None, user_id: int) -> str:
+    if not doc_id:
+        return ""
     with db_connection() as connection:
         row = connection.execute(
             "SELECT raw_text FROM documents WHERE id = ? AND user_id = ?",
@@ -23,17 +25,14 @@ def _get_owned_document_text(doc_id: int, user_id: int) -> str:
         ).fetchone()
 
     if row is None:
-        raise HTTPException(status_code=404, detail="Document not found")
+        return ""
 
-    document_text = row["raw_text"] or ""
-    if not document_text.strip():
-        raise HTTPException(status_code=400, detail="Document has no extracted text yet")
-    return document_text
+    return row["raw_text"] or ""
 
 
 @router.post("/ask", response_model=AiAskResponse)
 async def ask(
-    document_id: int = Form(...),
+    document_id: int | None = Form(default=None),
     session_id: str | None = Form(default=None),
     question: str | None = Form(default=None),
     audio: UploadFile | None = File(default=None),
@@ -44,15 +43,18 @@ async def ask(
     as both text and synthesized speech."""
     document_text = _get_owned_document_text(document_id, current_user["id"])
 
-    if audio is not None:
+    if audio is not None and getattr(audio, "filename", None):
         content = await audio.read()
-        ext = file_extension(audio.filename or "") or ".wav"
-        relative_name = f"{current_user['id']}/{uuid4().hex}{ext}"
-        audio_path = save_upload_file(get_upload_dir(), relative_name, content)
+        if content and len(content) > 0:
+            ext = file_extension(audio.filename or "") or ".m4a"
+            relative_name = f"{current_user['id']}/{uuid4().hex}{ext}"
+            audio_path = save_upload_file(get_upload_dir(), relative_name, content)
 
-        from app.services.voice_service import transcribe
+            from app.services.voice_service import transcribe
 
-        question = transcribe(audio_path)
+            transcribed = transcribe(audio_path)
+            if transcribed:
+                question = transcribed
 
     if not question or not question.strip():
         raise HTTPException(status_code=400, detail="Provide either 'question' text or an 'audio' file")
@@ -62,16 +64,19 @@ async def ask(
 
     answer = ask_ai(document_text, history, question)
 
+    answer_audio_url = None
+    if answer and answer.strip():
+        try:
+            from app.services.voice_service import synthesize
+            relative_name = f"{current_user['id']}/tts_{uuid4().hex}.mp3"
+            output_path = Path(get_upload_dir()) / relative_name
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            synthesize(answer, "ar", str(output_path))
+            answer_audio_url = f"/{output_path.as_posix()}"
+        except Exception as e:
+            print(f"[AI ASSISTANT] Pre-synthesis failed ({e})")
+
     store_message(resolved_session_id, "user", question)
-
-    from app.services.voice_service import synthesize
-
-    relative_name = f"{current_user['id']}/ai_{uuid4().hex}.mp3"
-    output_path = Path(get_upload_dir()) / relative_name
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    synthesize(answer, "ar", str(output_path))
-    answer_audio_url = f"/{output_path.as_posix()}"
-
     store_message(resolved_session_id, "assistant", answer, audio_url=answer_audio_url)
 
     return {
