@@ -41,11 +41,16 @@ except ImportError as exc:  # pragma: no cover
 else:
     _GROQ_IMPORT_ERROR = None
 
-load_dotenv()
+from pathlib import Path
+_ENV_PATH = Path(__file__).parent.parent.parent / ".env"
+if _ENV_PATH.exists():
+    load_dotenv(dotenv_path=_ENV_PATH)
+else:
+    load_dotenv()
 
 # ── Model selection ──────────────────────────────────────────────────────────
 # Override in .env: GROQ_MODEL=llama-3.3-70b-versatile for higher accuracy
-_GROQ_MODEL: str = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant")
+_GROQ_MODEL: str = os.getenv("GROQ_MODEL", "allam-2-7b")
 
 # ── Local AI (Ollama) ────────────────────────────────────────────────────────
 # A locally-run Ollama server is the DEFAULT provider for every AI call in
@@ -61,8 +66,8 @@ _GROQ_MODEL: str = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant")
 # "aya-expanse:8b" (Cohere's Aya, tuned specifically for non-English
 # languages including Arabic), "llama3.1:8b".
 _OLLAMA_BASE_URL: str = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434").rstrip("/")
-_OLLAMA_MODEL: str = os.getenv("OLLAMA_MODEL", "qwen2.5:7b")
-_OLLAMA_TIMEOUT_SECONDS: float = float(os.getenv("OLLAMA_TIMEOUT_SECONDS", "120"))
+_OLLAMA_MODEL: str = os.getenv("OLLAMA_MODEL", "qwen2.5:3b")
+_OLLAMA_TIMEOUT_SECONDS: float = float(os.getenv("OLLAMA_TIMEOUT_SECONDS", "60"))
 _AI_PREFER_CLOUD: bool = os.getenv("AI_PREFER_CLOUD", "false").strip().lower() in {"1", "true", "yes"}
 
 
@@ -191,29 +196,50 @@ def _ollama_chat_completion(
     json_mode: bool = False,
 ) -> str:
     """Call a locally-running Ollama server's native chat API.
-
-    Raises on any connection failure or non-200 response (Ollama not
-    running, model not pulled, etc.) so callers can fall back to Groq/
-    heuristics rather than silently treating an empty/error response as a
-    real answer.
+    Attempts configured _OLLAMA_MODEL first, and falls back to other pulled models if 404.
     """
-    payload: dict[str, Any] = {
-        "model": _OLLAMA_MODEL,
-        "messages": messages,
-        "stream": False,
-        "options": {"temperature": temperature, "num_predict": max_tokens},
-    }
-    if json_mode:
-        payload["format"] = "json"
+    models_to_try = [_OLLAMA_MODEL, "hf.co/ibm-granite/granite-4.2-3b-GGUF:Q3_K_M", "qwen2.5:3b", "llama3.2:latest"]
+    seen = set()
+    unique_models = [m for m in models_to_try if m and not (m in seen or seen.add(m))]
 
-    response = requests.post(
-        f"{_OLLAMA_BASE_URL}/api/chat",
-        json=payload,
-        timeout=_OLLAMA_TIMEOUT_SECONDS,
-    )
-    response.raise_for_status()
-    data = response.json()
-    return (data.get("message", {}).get("content") or "").strip()
+    last_exc = None
+    for model_name in unique_models:
+        payload: dict[str, Any] = {
+            "model": model_name,
+            "messages": messages,
+            "stream": False,
+            "options": {
+                "temperature": 0.2,
+                "top_p": 0.85,
+                "repeat_penalty": 1.25,
+                "repeat_last_n": 64,
+                "num_predict": min(max_tokens, 350),
+            },
+        }
+        if json_mode:
+            payload["format"] = "json"
+
+        try:
+            response = requests.post(
+                f"{_OLLAMA_BASE_URL}/api/chat",
+                json=payload,
+                timeout=_OLLAMA_TIMEOUT_SECONDS,
+            )
+            response.raise_for_status()
+            data = response.json()
+            return (data.get("message", {}).get("content") or "").strip()
+        except requests.HTTPError as err:
+            last_exc = err
+            if err.response is not None and err.response.status_code == 404:
+                print(f"[AI SERVICE] Model '{model_name}' not found in Ollama, attempting fallback model...")
+                continue
+            raise err
+        except Exception as err:
+            raise err
+
+    if last_exc:
+        raise last_exc
+    raise RuntimeError("No available Ollama model could complete the request")
 
 
 def chat_completion(
@@ -242,19 +268,23 @@ def chat_completion(
                 messages, temperature=temperature, max_tokens=max_tokens, json_mode=json_mode
             )
         except Exception as exc:
-            print(f"[AI SERVICE] Local Ollama unavailable ({exc}); falling back to Groq")
+            print(f"[AI SERVICE] Local Ollama unavailable ({exc}); attempting fallback...")
 
-    client = _get_client()
-    kwargs: dict[str, Any] = {
-        "model": _GROQ_MODEL,
-        "temperature": temperature,
-        "max_tokens": max_tokens,
-        "messages": messages,
-    }
-    if json_mode:
-        kwargs["response_format"] = {"type": "json_object"}
-    completion = client.chat.completions.create(**kwargs)
-    return (completion.choices[0].message.content or "").strip()
+    try:
+        client = _get_client()
+        kwargs: dict[str, Any] = {
+            "model": _GROQ_MODEL,
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+            "messages": messages,
+        }
+        if json_mode:
+            kwargs["response_format"] = {"type": "json_object"}
+        completion = client.chat.completions.create(**kwargs)
+        return (completion.choices[0].message.content or "").strip()
+    except Exception as exc:
+        print(f"[AI SERVICE] Cloud Groq fallback unavailable ({exc})")
+        raise RuntimeError("AI Service unavailable: Local Ollama timed out and GROQ_API_KEY is not configured.") from exc
 
 
 # ── Heuristic / fallback helpers ─────────────────────────────────────────────

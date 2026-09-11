@@ -37,14 +37,15 @@ async def speech_to_text(
 
 
 @router.post("/tts", response_model=VoiceSynthesizeResponse)
-def text_to_speech(
+async def text_to_speech(
     body: VoiceSynthesizeRequest,
     current_user: dict[str, Any] = Depends(get_current_user),
 ) -> dict[str, Any]:
     """Thin HTTP wrapper around app.services.voice_service.synthesize(text,
     language, output_path) -> None, writing under uploads/ so the existing
     StaticFiles mount at /uploads can serve the result."""
-    if not body.text.strip():
+    print(f"[VOICE TTS] Received request - text length: {len(body.text) if body.text else 0}, language: {body.language!r}")
+    if not body.text or not body.text.strip():
         raise HTTPException(status_code=400, detail="text is required")
 
     try:
@@ -52,9 +53,14 @@ def text_to_speech(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-    relative_name = f"{current_user['id']}/tts_{uuid4().hex}.wav"
+    relative_name = f"{current_user['id']}/tts_{uuid4().hex}.mp3"
     output_path = Path(get_upload_dir()) / relative_name
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    synthesize(body.text, body.language, str(output_path))
+
+    try:
+        synthesize(body.text, body.language or "ar", str(output_path))
+    except Exception as e:
+        print(f"[VOICE TTS] synthesize() failed: {e}")
+        raise HTTPException(status_code=500, detail=f"TTS synthesis failed: {e}")
 
     return {"audio_url": f"/{output_path.as_posix()}"}
