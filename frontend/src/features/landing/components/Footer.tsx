@@ -8,14 +8,14 @@ export const Footer = () => {
     <View className="border-t-2 border-line bg-white">
       <Container>
         <View className="py-8">
-          <Text className="text-right text-2xl font-extrabold text-ink">Sahelha Alya</Text>
-          <Text className="mt-3 text-right text-lg font-semibold leading-7 text-ink">
-            Software built to solve a real problem.
+          <Text className="text-right font-cairoExtraBold text-2xl text-ink">سهلها عليا</Text>
+          <Text className="mt-3 text-right font-plexSemiBold text-lg leading-7 text-ink">
+            مساعد ذكاء اصطناعي بيسهّل عليك التعامل مع مستنداتك الحكومية بصوتك.
           </Text>
           <View className="mt-6 flex-row-reverse flex-wrap gap-5">
-            <Text className="text-lg font-bold text-ink">Features</Text>
-            <Text className="text-lg font-bold text-ink">FAQ</Text>
-            <Text className="text-lg font-bold text-ink">Contact</Text>
+            <Text className="font-plexBold text-lg text-ink">المميزات</Text>
+            <Text className="font-plexBold text-lg text-ink">الأسئلة الشائعة</Text>
+            <Text className="font-plexBold text-lg text-ink">تواصل معانا</Text>
           </View>
         </View>
       </Container>

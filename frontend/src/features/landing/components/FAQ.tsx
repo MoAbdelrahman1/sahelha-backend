@@ -16,14 +16,15 @@ const FAQItem = ({ question, answer }: FAQItemProps) => {
         onPress={() => setOpen((value) => !value)}
         className="min-h-[56px] flex-row-reverse items-center justify-between gap-4 p-5"
         accessibilityRole="button"
+        accessibilityLabel={question}
         accessibilityState={{ expanded: open }}
       >
-        <Text className="flex-1 text-right text-xl font-bold text-ink">{question}</Text>
-        <Text className="text-3xl font-extrabold text-brandBlueDeep">{open ? "−" : "+"}</Text>
+        <Text className="flex-1 text-right font-plexBold text-xl text-ink">{question}</Text>
+        <Text className="font-cairoExtraBold text-3xl text-primary">{open ? "−" : "+"}</Text>
       </Pressable>
       {open ? (
         <View className="px-5 pb-5">
-          <Text className="text-right text-lg font-semibold leading-7 text-ink">{answer}</Text>
+          <Text className="text-right font-plexSemiBold text-lg leading-7 text-ink">{answer}</Text>
         </View>
       ) : null}
     </View>
@@ -33,34 +34,36 @@ const FAQItem = ({ question, answer }: FAQItemProps) => {
 export const FAQ = () => {
   const items = [
     {
-      question: "Who is this product for?",
+      question: "هل التطبيق شغال مع قارئ الشاشة لغير المبصرين؟",
       answer:
-        "It is designed for teams that want a clearer way to manage core workflows without adopting a bloated all-in-one platform.",
+        "أيوة. كل شاشة في التطبيق شغالة مع قارئ الشاشة (TalkBack/VoiceOver)، وتقدر تستخدم التطبيق بالكامل بصوتك من غير ما تحتاج تشوف الشاشة.",
     },
     {
-      question: "Can I cancel anytime?",
+      question: "مستنداتي وبياناتي آمنة؟",
       answer:
-        "Yes. Plans are month-to-month and can be changed or cancelled whenever your needs change.",
+        "مستنداتك مربوطة بحسابك بس، ومحدش يشوفها غيرك إلا لو شاركتها بنفسك عن طريق كود QR أو رابط المشاركة.",
     },
     {
-      question: "Does it replace all of our tools?",
+      question: "محتاج إنترنت عشان استخدم التطبيق؟",
       answer:
-        "No. The goal is to improve the core of your workflow, not force you to replace every tool you already use.",
+        "أيوة، محتاج اتصال إنترنت عشان تصوير وتحليل المستندات وسؤال المساعد الصوتي، لأن القراءة والتلخيص بيحصلوا على السيرفر.",
     },
     {
-      question: "How quickly can we get started?",
+      question: "بيشتغل مع أنهي أنواع مستندات؟",
       answer:
-        "Most teams can get the basics set up quickly and then refine the workflow as they learn what they need.",
+        "بطاقة الرقم القومي، شهادة الميلاد، جواز السفر، فاتورة المرافق، وأنواع تانية من المستندات الحكومية والرسمية.",
+    },
+    {
+      question: "التطبيق مجاني؟",
+      answer: "أيوة، سهلها عليا مجاني للاستخدام بالكامل.",
     },
   ];
   return (
     <Container>
       <Section>
-        <Text className="text-right text-lg font-bold text-ink">
-          Frequently asked questions
-        </Text>
-        <Text className="mt-3 text-right text-5xl font-extrabold leading-tight text-ink">
-          Answers to real <Highlight>questions</Highlight> that matter
+        <Text className="text-right font-plexBold text-lg text-ink">الأسئلة الشائعة</Text>
+        <Text className="mt-3 text-right font-cairoExtraBold text-5xl leading-tight text-ink">
+          إجابات على <Highlight>أسئلتك</Highlight> الحقيقية
         </Text>
         <View className="mt-8 gap-3">
           {items.map((item) => (
