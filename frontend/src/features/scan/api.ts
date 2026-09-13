@@ -1,3 +1,5 @@
+import { Platform } from "react-native";
+
 import { apiClient } from "@/lib/api/client";
 import { toApiError } from "@/lib/api/errors";
 
@@ -21,11 +23,22 @@ export type AnalyzeDocumentResponse = {
 // the same image twice for no benefit, so this screen calls /analyze only.
 export async function analyzeDocument(photoUri: string): Promise<AnalyzeDocumentResponse> {
   const formData = new FormData();
-  formData.append("file", {
-    uri: photoUri,
-    name: "document.jpg",
-    type: "image/jpeg",
-  } as unknown as Blob);
+  if (Platform.OS === "web") {
+    // The RN `{uri, name, type}` FormData part below only works on
+    // Android/iOS, where the native networking layer streams the file from
+    // that URI. A real browser's FormData just stringifies that object into
+    // a text field, so the backend's `file: UploadFile` sees a string, not a
+    // file part, and 422s. Fetch the picked blob: URI into a real Blob so
+    // this also works under `expo start --web`.
+    const blob = await (await fetch(photoUri)).blob();
+    formData.append("file", blob, "document.jpg");
+  } else {
+    formData.append("file", {
+      uri: photoUri,
+      name: "document.jpg",
+      type: "image/jpeg",
+    } as unknown as Blob);
+  }
 
   try {
     const { data } = await apiClient.post<AnalyzeDocumentResponse>("/api/document/analyze", formData, {
