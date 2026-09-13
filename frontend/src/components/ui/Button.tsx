@@ -5,9 +5,10 @@ export type ButtonProps = {
   children: React.ReactNode;
   variant?: "primary" | "secondary" | "dark";
   onPress?: () => void;
+  accessibilityLabel?: string;
 };
 
-export const Button = ({ children, variant = "primary", onPress }: ButtonProps) => {
+export const Button = ({ children, variant = "primary", onPress, accessibilityLabel }: ButtonProps) => {
   const base =
     "min-h-[56px] rounded-full px-8 py-4 items-center justify-center active:opacity-80";
   const styles = {
@@ -21,7 +22,12 @@ export const Button = ({ children, variant = "primary", onPress }: ButtonProps) 
     dark: "text-white",
   };
   return (
-    <Pressable onPress={onPress} className={`${base} ${styles[variant]}`}>
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel ?? (typeof children === "string" ? children : undefined)}
+      className={`${base} ${styles[variant]}`}
+    >
       <Text className={`font-plexBold text-xl ${textStyles[variant]}`}>{children}</Text>
     </Pressable>
   );

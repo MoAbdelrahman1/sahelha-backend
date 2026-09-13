@@ -41,10 +41,15 @@ export default function DocumentDetailScreen() {
 
   const typeLabel = doc.doc_type ? DOC_TYPE_LABELS[doc.doc_type] : "مستند";
 
-  const confirmDelete = () => {
-    deleteDocument(doc.id);
-    showToast("تم حذف المستند");
-    router.back();
+  const confirmDelete = async () => {
+    try {
+      await deleteDocument(doc.id);
+      showToast("تم حذف المستند");
+      router.back();
+    } catch {
+      showToast("تعذّر حذف المستند، حاول تاني");
+      setConfirmingDelete(false);
+    }
   };
 
   const row = (label: string, value: string) => (

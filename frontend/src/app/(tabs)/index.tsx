@@ -1,5 +1,5 @@
 import React from "react";
-import { ScrollView, Text, View, Pressable } from "react-native";
+import { ActivityIndicator, ScrollView, Text, View, Pressable } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 
@@ -16,7 +16,7 @@ import { palette } from "@/styles/theme";
 export default function HomeScreen() {
   const router = useRouter();
   const { highContrast } = useAppearance();
-  const { documents } = useDocuments();
+  const { documents, isLoading, error } = useDocuments();
   const c = palette(highContrast);
 
   return (
@@ -48,7 +48,28 @@ export default function HomeScreen() {
           مستنداتك
         </Text>
 
-        {documents.length === 0 ? (
+        {isLoading && documents.length === 0 ? (
+          <View
+            role="status"
+            accessibilityLiveRegion="polite"
+            style={{ paddingVertical: 40, alignItems: "center", gap: 10 }}
+          >
+            <ActivityIndicator size="large" color={c.primaryBg} />
+            <Text style={{ fontFamily: "IBMPlexSansArabic_600SemiBold", fontSize: 16, color: c.secondary, textAlign: "center" }}>
+              بنحمّل مستنداتك...
+            </Text>
+          </View>
+        ) : error ? (
+          <View
+            role="alert"
+            accessibilityLiveRegion="assertive"
+            style={{ paddingVertical: 40, alignItems: "center", gap: 10 }}
+          >
+            <Text style={{ fontFamily: "IBMPlexSansArabic_600SemiBold", fontSize: 16, color: "#B3261E", textAlign: "center" }}>
+              {error}
+            </Text>
+          </View>
+        ) : documents.length === 0 ? (
           <View style={{ paddingVertical: 40, alignItems: "center", gap: 10 }}>
             <Text style={{ fontFamily: "IBMPlexSansArabic_600SemiBold", fontSize: 16, color: c.secondary, textAlign: "center" }}>
               لسه معندكش مستندات. اضغط على "مسح مستند جديد" عشان تبدأ.

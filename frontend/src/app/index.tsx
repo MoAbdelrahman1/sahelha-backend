@@ -4,18 +4,12 @@ import { useRouter } from "expo-router";
 
 import { Header } from "@/features/landing/components/Header";
 import { Hero } from "@/features/landing/components/Hero";
-import { TrustedBy } from "@/features/landing/components/TrustedBy";
-import { FounderIntro } from "@/features/landing/components/FounderIntro";
 import { ProblemSolution } from "@/features/landing/components/ProblemSolution";
 import { Features } from "@/features/landing/components/Features";
 import { HowItWorks } from "@/features/landing/components/HowItWorks";
-import { FounderStory } from "@/features/landing/components/FounderStory";
-import { Reviews } from "@/features/landing/components/Reviews";
 import { FAQ } from "@/features/landing/components/FAQ";
-import { Subscribe } from "@/features/landing/components/Subscribe";
 import { FinalCTA } from "@/features/landing/components/FinalCTA";
 import { Footer } from "@/features/landing/components/Footer";
-import { Container } from "@/features/landing/components/primitives";
 
 // This screen is intentionally a thin composition of src/features/landing's
 // section components — see that folder for the actual UI.
@@ -52,17 +46,10 @@ export default function LandingScreen() {
       >
         <Header onGetStarted={goToApp} />
         <Hero onRegisterPress={goToLogin} />
-        <TrustedBy />
-        <FounderIntro />
         <ProblemSolution />
         <Features />
         <HowItWorks />
-        <FounderStory />
-        <Reviews />
         <FAQ />
-        <Container>
-          <Subscribe />
-        </Container>
         <FinalCTA onGetStarted={goToApp} />
         <Footer />
       </ScrollView>
