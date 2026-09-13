@@ -4,34 +4,33 @@ import { Text, View, useWindowDimensions } from "react-native";
 import { Button } from "@/components/ui/Button";
 import { Container, Highlight, Pill, Section } from "./primitives";
 
-// Central "app mock" card reused by both the wide (scattered) and narrow
-// (stacked) hero visual layouts below.
+// A small mock of the real Document Detail screen (see
+// src/app/document/[id]/index.tsx) — not a generic "dashboard" widget. Shows
+// exactly what the product actually produces: a plain-Arabic summary and two
+// extracted fields, so the hero visual is a truthful preview, not marketing
+// filler.
 const HeroMockCard = () => {
   return (
     <View className="w-full max-w-[320px] rounded-card bg-white p-4 shadow-sm">
       <View className="rounded-[20px] bg-soft p-4">
         <View className="mb-4 flex-row-reverse items-center justify-between">
-          <View>
-            <Text className="text-right text-base font-bold text-ink">Workspace health</Text>
-            <Text className="mt-1 text-right text-2xl font-bold text-ink">94%</Text>
-          </View>
-          <View className="rounded-full bg-brandBlueDeep px-4 py-2">
-            <Text className="text-base font-bold text-white">Live</Text>
+          <Text className="text-right font-cairoExtraBold text-base text-ink">بطاقة الرقم القومي</Text>
+          <View className="rounded-full bg-primary px-4 py-2">
+            <Text className="font-plexBold text-sm text-white">✓ جاهز</Text>
           </View>
         </View>
         <View className="gap-3">
-          {/* items-end (instead of flex-row-reverse) mirrors the fill to the
-              right edge — these tracks are column containers by default, so
-              the fill's horizontal position is a cross-axis alignment, not a
-              row direction. */}
-          <View className="h-3 w-full items-end rounded-full bg-black/10">
-            <View className="h-3 w-[82%] rounded-full bg-brandBlueDeep" />
+          <View className="flex-row-reverse justify-between">
+            <Text className="font-plexBold text-sm text-secondary">الاسم</Text>
+            <Text className="font-plexSemiBold text-sm text-ink">محمد أحمد</Text>
           </View>
-          <View className="h-3 w-full items-end rounded-full bg-black/10">
-            <View className="h-3 w-[64%] rounded-full bg-brandBlue" />
+          <View className="flex-row-reverse justify-between">
+            <Text className="font-plexBold text-sm text-secondary">تاريخ الانتهاء</Text>
+            <Text className="font-plexSemiBold text-sm text-ink">٢٠٢٧/٠١/٠١</Text>
           </View>
-          <View className="h-3 w-full items-end rounded-full bg-black/10">
-            <View className="h-3 w-[74%] rounded-full bg-brandBlueDeep" />
+          <View className="flex-row-reverse justify-between">
+            <Text className="font-plexBold text-sm text-secondary">التذكير</Text>
+            <Text className="font-plexSemiBold text-sm text-ink">✓ متضبط تلقائيًا</Text>
           </View>
         </View>
       </View>
@@ -50,11 +49,19 @@ const FloatingStat = ({
 }) => {
   return (
     <View className="absolute rounded-2xl bg-white p-4 shadow-sm" style={style}>
-      <Text className="text-right text-base font-bold text-ink">{label}</Text>
-      <Text className="mt-1 text-right text-xl font-bold text-ink">{value}</Text>
+      <Text className="text-right font-cairoExtraBold text-xl text-ink">{value}</Text>
+      <Text className="mt-1 max-w-[130px] text-right font-plexSemiBold text-sm text-secondary">{label}</Text>
     </View>
   );
 };
+
+// Real figures from the pitch deck / SAHELHA_DESIGN_BRIEF.md §1 — not
+// invented marketing stats.
+const STATS = [
+  { label: "شخص حول العالم لديهم إعاقة بصرية", value: "+285M" },
+  { label: "ناطق بالعربية بلا حل مخصص ليه", value: "+45M" },
+  { label: "كلمة محتاج تقراها بنفسك", value: "0" },
+];
 
 const HeroVisual = () => {
   const { width } = useWindowDimensions();
@@ -64,22 +71,14 @@ const HeroVisual = () => {
   const isWide = width >= 640;
 
   if (!isWide) {
-    const stats = [
-      { label: "Saved time", value: "12h" },
-      { label: "Tasks closed", value: "328" },
-      { label: "Faster delivery", value: "+64%" },
-    ];
     return (
       <View className="mt-10 items-center">
         <HeroMockCard />
         <View className="mt-4 w-full flex-row-reverse flex-wrap gap-3">
-          {stats.map((stat) => (
-            <View
-              key={stat.label}
-              className="min-w-[130px] flex-1 rounded-2xl bg-white p-4 shadow-sm"
-            >
-              <Text className="text-right text-base font-bold text-ink">{stat.label}</Text>
-              <Text className="mt-1 text-right text-xl font-bold text-ink">{stat.value}</Text>
+          {STATS.map((stat) => (
+            <View key={stat.label} className="min-w-[130px] flex-1 rounded-2xl bg-white p-4 shadow-sm">
+              <Text className="text-right font-cairoExtraBold text-xl text-ink">{stat.value}</Text>
+              <Text className="mt-1 text-right font-plexSemiBold text-sm text-secondary">{stat.label}</Text>
             </View>
           ))}
         </View>
@@ -98,19 +97,19 @@ const HeroVisual = () => {
       <View style={{ width: "100%", maxWidth: 380, position: "relative", alignItems: "center" }}>
         <HeroMockCard />
         <FloatingStat
-          label="Saved time"
-          value="12h"
-          style={{ top: -20, right: -28, width: 150, zIndex: 3, transform: [{ rotate: "-4deg" }] }}
+          label={STATS[0].label}
+          value={STATS[0].value}
+          style={{ top: -20, right: -28, width: 160, zIndex: 3, transform: [{ rotate: "-4deg" }] }}
         />
         <FloatingStat
-          label="Tasks closed"
-          value="328"
+          label={STATS[1].label}
+          value={STATS[1].value}
           style={{ bottom: -16, right: -18, width: 160, zIndex: 3, transform: [{ rotate: "3deg" }] }}
         />
         <FloatingStat
-          label="Faster delivery"
-          value="+64%"
-          style={{ top: 90, left: -30, width: 160, zIndex: 3, transform: [{ rotate: "-2deg" }] }}
+          label={STATS[2].label}
+          value={STATS[2].value}
+          style={{ top: 90, left: -30, width: 150, zIndex: 3, transform: [{ rotate: "-2deg" }] }}
         />
       </View>
     </View>
@@ -122,22 +121,25 @@ export const Hero = ({ onRegisterPress }: { onRegisterPress: () => void }) => {
     <View className="overflow-hidden rounded-b-[32px] bg-white">
       <Container>
         <Section className="pt-14">
-          <View className="rounded-card bg-[rgba(37,99,235,0.08)] p-6">
-            <Pill>Founder-led software</Pill>
-            <Text className="mt-6 text-right text-6xl font-extrabold leading-tight text-ink">
-              Software built to <Highlight>solve</Highlight> a real problem
+          <View className="rounded-card bg-soft p-6">
+            <Pill>مبني خصيصًا لأصحاب الإعاقة البصرية</Pill>
+            <Text className="mt-6 text-right font-cairoBlack text-5xl leading-tight text-ink">
+              حوّل مستنداتك الحكومية إلى <Highlight>محادثة صوتية</Highlight>
             </Text>
-            <Text className="mt-5 text-right text-xl font-semibold leading-8 text-ink">
-              A founder-led platform designed to help teams move faster, reduce
-              friction, and get real results without bloated features or
-              confusing workflows.
+            <Text className="mt-5 text-right font-plexSemiBold text-xl leading-8 text-ink">
+              سهلها عليا مساعد ذكاء اصطناعي بيسمعلك مستنداتك الحكومية، يلخصها بالعربي البسيط، ويرد
+              على أسئلتك بصوتك — من غير ما تحتاج تقرا حرف واحد.
             </Text>
             <View className="mt-8 flex-row-reverse flex-wrap gap-4">
               {/* Primary hero CTA — routes into the auth flow (/login) rather
                   than straight into the app, unlike the header/final-CTA
                   "Get Started" buttons which still go to /(tabs). */}
-              <Button onPress={onRegisterPress}>سجل الآن</Button>
-              <Button variant="secondary">كيفية الاستخدام</Button>
+              <Button onPress={onRegisterPress} accessibilityLabel="سجل الآن وابدأ استخدام التطبيق">
+                سجل الآن
+              </Button>
+              <Button variant="secondary" accessibilityLabel="اعرف كيف يعمل التطبيق">
+                كيف يعمل؟
+              </Button>
             </View>
             <HeroVisual />
           </View>

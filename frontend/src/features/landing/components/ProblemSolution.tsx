@@ -9,25 +9,24 @@ export const ProblemSolution = () => {
       <Section>
         <View className="gap-4">
           <View className="rounded-card border-2 border-line bg-white p-6">
-            <Text className="text-right text-lg font-bold text-ink">The problem</Text>
-            <Text className="mt-4 text-right text-4xl font-extrabold leading-tight text-ink">
-              Tools add complexity instead of removing it
+            <Text className="text-right font-plexBold text-lg text-ink">المشكلة</Text>
+            <Text className="mt-4 text-right font-cairoExtraBold text-4xl leading-tight text-ink">
+              المستندات الحكومية عائق حقيقي لغير المبصرين
             </Text>
-            <Text className="mt-4 text-right text-xl font-semibold leading-8 text-ink">
-              Teams waste time switching between tools, setting up workflows
-              that do not quite fit, and adapting to software that was not
-              designed for their real use cases.
+            <Text className="mt-4 text-right font-plexSemiBold text-xl leading-8 text-ink">
+              أكتر من ٢٨٥ مليون شخص حول العالم عندهم إعاقة بصرية، وفيهم أكتر من ٤٥ مليون ناطق
+              بالعربية. المستندات الحكومية غالبًا مطبوعة بخط صغير أو بلغة معقدة — وده بيخلّي حاجة
+              بسيطة زي معرفة تاريخ انتهاء البطاقة تحدي يومي حقيقي.
             </Text>
           </View>
-          <View className="rounded-card bg-brandBlueDeep p-6">
-            <Text className="text-right text-lg font-bold text-white">The solution</Text>
-            <Text className="mt-4 text-right text-4xl font-extrabold leading-tight text-white">
-              A product designed around real workflows
+          <View className="rounded-card bg-primary p-6">
+            <Text className="text-right font-plexBold text-lg text-white">الحل</Text>
+            <Text className="mt-4 text-right font-cairoExtraBold text-4xl leading-tight text-white">
+              مساعد صوتي بيقرا ويشرح ويرد بدل ما تحتاج حد معاك
             </Text>
-            <Text className="mt-4 text-right text-xl font-semibold leading-8 text-white">
-              This platform focuses on the few things that matter most. It is
-              opinionated where it should be and flexible where it needs to be,
-              so you can get value quickly and grow without friction.
+            <Text className="mt-4 text-right font-plexSemiBold text-xl leading-8 text-white">
+              سهلها عليا تصوّر المستند بكاميرا موبايلك، تقراه بالذكاء الاصطناعي، تلخصه بالعربي
+              البسيط، وترد على أسئلتك بصوتك — وتفكرك تلقائيًا قبل ما ميعاده يخلص.
             </Text>
           </View>
         </View>
