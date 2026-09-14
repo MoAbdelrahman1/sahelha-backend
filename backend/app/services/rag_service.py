@@ -47,9 +47,10 @@ def search_government_rag(query: str) -> Optional[Dict[str, Any]]:
 
     # 1. Deterministic keyword routing rules for high-precision matching
     # Marriage certificate
-    if any(k in norm_query for k in ["زواج", "قباله", "قوشان", "ماذون"]):
-        if "CSOFA-MARRIAGE-CERTIFICATE" in items_by_id:
-            return items_by_id["CSOFA-MARRIAGE-CERTIFICATE"]
+    if any(k in norm_query for k in ["زواج", "قباله", "قوشان", "ماذون", "قسيمه", "اسيمه", "قسيمة", "اسيمة"]):
+        if "طلاق" not in norm_query and "جواز سفر" not in norm_query and "باسبور" not in norm_query:
+            if "CSOFA-MARRIAGE-CERTIFICATE" in items_by_id:
+                return items_by_id["CSOFA-MARRIAGE-CERTIFICATE"]
 
     # Divorce certificate
     if any(k in norm_query for k in ["طلاق", "اشهاد طلاق", "مطلقه", "مطلق"]):
@@ -67,7 +68,7 @@ def search_government_rag(query: str) -> Optional[Dict[str, Any]]:
             return items_by_id["CSOFA-BIRTH-CERTIFICATE"]
 
     # Family registration
-    if any(k in norm_query for k in ["قيد عايلي", "قيد عائلي", "العايلي", "العائلي"]):
+    if any(k in norm_query for k in ["قيد عايلي", "قيد عائلي", "العايلي", "العائلي", "قيد اسري"]):
         if "CSOFA-FAMILY-REGISTRATION" in items_by_id:
             return items_by_id["CSOFA-FAMILY-REGISTRATION"]
 
@@ -76,10 +77,11 @@ def search_government_rag(query: str) -> Optional[Dict[str, Any]]:
         if "CSOFA-ID-CARD" in items_by_id:
             return items_by_id["CSOFA-ID-CARD"]
 
-    # Passport
-    if any(k in norm_query for k in ["جواز السفر", "جواز سفر", "جوازات", "باسبور"]):
-        if "PASSPORT-EGYPT" in items_by_id:
-            return items_by_id["PASSPORT-EGYPT"]
+    # Passport (explicitly require "جواز سفر" or "باسبور" or both words "سفر" and "جواز")
+    if any(k in norm_query for k in ["جواز سفر", "جواز السفر", "جوازات", "باسبور"]) or ("سفر" in norm_query and "جواز" in norm_query):
+        if "قسيمة" not in norm_query and "اسيمة" not in norm_query:
+            if "PASSPORT-EGYPT" in items_by_id:
+                return items_by_id["PASSPORT-EGYPT"]
 
     # Traffic Violations
     if any(k in norm_query for k in ["مخالفات", "تظلم", "رادار", "غرامات", "مخالفه"]):
@@ -135,7 +137,13 @@ def search_government_rag(query: str) -> Optional[Dict[str, Any]]:
             return items_by_id["SHMFF-SOCIAL-HOUSING"]
 
     # 2. Token overlap fallback if no direct keyword matches
-    stop_words = {"انت", "عايز", "عاوز", "اطلع", "اعمل", "طريقه", "ازاي", "فين", "استخراج", "إصدار", "تجديد", "ايه", "المطلوب", "لكن", "من", "في", "على", "عن", "هل", "يا", "دي", "دول"}
+    stop_words = {
+        "انت", "انتي", "عايز", "عاوز", "عاوزه", "عايزه", "اطلع", "اعمل", "طريقه", "ازاي",
+        "فين", "استخراج", "إصدار", "تجديد", "ايه", "المطلوب", "لكن", "من", "في", "على",
+        "عن", "هل", "يا", "دي", "دول", "دا", "ده", "الو", "ألو", "مين", "معايا", "معاك",
+        "مساء", "صباح", "الخير", "سلام", "عليكم", "شكرا", "تمام", "ماشي", "اوك", "اوكي",
+        "ممكن", "لو", "سمحت", "ياريت", "عندي", "سؤال", "استفسار", "معلومات", "هلا", "مرحبا"
+    }
     tokens = set([w for w in norm_query.split() if len(w) >= 2 and w not in stop_words])
 
     best_item = None
@@ -153,7 +161,14 @@ def search_government_rag(query: str) -> Optional[Dict[str, Any]]:
                 best_score = score
                 best_item = item
 
-    return best_item or (dataset[0] if dataset else None)
+    # Require at least 2 matching tokens for longer queries, or 1 if query is a single specific token
+    required_score = 2 if len(tokens) >= 2 else 1
+    if best_item and best_score >= required_score:
+        return best_item
+
+    return None
+
+    return None
 
 
 def format_rag_context_for_llm(matched_service: Dict[str, Any]) -> str:

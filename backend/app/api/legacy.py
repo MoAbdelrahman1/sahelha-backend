@@ -127,6 +127,7 @@ async def analyze_document(
     session_id: str | None = Form(default=None),
     file: UploadFile | None = File(default=None),
 ) -> dict[str, Any]:
+    import asyncio
     import tempfile, os
     from app.services.pipeline import process_document_pipeline
 
@@ -140,35 +141,138 @@ async def analyze_document(
         tmp_path = tmp.name
 
     try:
-        result = process_document_pipeline(tmp_path)
+        result = await asyncio.to_thread(process_document_pipeline, tmp_path)
     finally:
-        os.unlink(tmp_path)
+        if os.path.exists(tmp_path):
+            os.unlink(tmp_path)
+
 
     doc_type = result.get("doc_type", "unknown")
     summary = result.get("summary", "")
     entities = result.get("entities", {})
 
-    # Convert entities dict to fields list that frontend expects
-    fields = [
-        {"field_key": k, "field_label_ar": k, "field_value": v}
-        for k, v in entities.items() if v
-    ]
+    doc_type_labels = {
+        "national_id": "بطاقة رقم قومي",
+        "passport": "جواز سفر",
+        "birth_certificate": "شهادة ميلاد",
+        "utility_bill": "فاتورة خدمات (كهرباء / مياه / غاز)",
+        "receipt": "إيصال سداد",
+        "invoice": "فاتورة رسمية",
+        "driving_license": "رخصة قيادة / تسيير",
+        "marriage_certificate": "وثيقة زواج",
+        "death_certificate": "شهادة وفاة",
+        "property_record": "سجل عقاري / ملكية",
+        "government_document": "مستند حكومي رسمي",
+        "unknown": "مستند رسمي",
+    }
+    doc_type_ar = doc_type_labels.get(doc_type, doc_type)
 
+    # Convert all extracted intelligence into fields matching frontend SCAN_ROW_KEY_MAP
+    fields: list[dict[str, str]] = []
+
+    # 1. Document Type
+    fields.append({"field_key": "doc_type", "field_label_ar": "نوع المستند", "field_value": doc_type_ar})
+
+    # 2. Issuer
+    issuer = result.get("issuer") or entities.get("issuer")
+    if not issuer and doc_type == "national_id":
+        issuer = "قطاع مصلحة الأحوال المدنية - وزارة الداخلية"
+    elif not issuer and doc_type == "driving_license":
+        issuer = "الإدارة العامة للمرور - وزارة الداخلية"
+    elif not issuer and doc_type == "utility_bill":
+        issuer = "شركة الخدمات والمرافق"
+    if issuer:
+        fields.append({"field_key": "issuer", "field_label_ar": "الجهة الحكومية", "field_value": str(issuer)})
+
+    # 3. Document Number
+    doc_number = result.get("doc_number") or entities.get("national_number") or entities.get("doc_number")
+    if doc_number:
+        fields.append({"field_key": "doc_number", "field_label_ar": "رقم المستند", "field_value": str(doc_number)})
+
+    # 4. Dates & Expiry
+    issue_date = result.get("issue_date")
+    expiry_date = result.get("expiry_date")
+    dates_list = []
+    if issue_date:
+        dates_list.append(f"إصدار: {issue_date}")
+    if expiry_date:
+        dates_list.append(f"انتهاء: {expiry_date}")
+    if dates_list:
+        fields.append({"field_key": "dates", "field_label_ar": "تاريخ الإصدار والانتهاء", "field_value": " / ".join(dates_list)})
+    elif result.get("dates"):
+        fields.append({"field_key": "dates", "field_label_ar": "التواريخ", "field_value": ", ".join(result["dates"])})
+
+    # 5. Amount
+    amount = result.get("amount") or (result.get("amounts") and result["amounts"][0])
+    if amount and str(amount).strip() and str(amount) != "لا يوجد":
+        fields.append({"field_key": "amount", "field_label_ar": "المبلغ المطلوب", "field_value": str(amount)})
+
+    # 6. Actions
+    actions = result.get("actions")
+    if not actions and doc_type == "national_id":
+        actions = "تجديد البطاقة قبل موعد الانتهاء واستخدامها لإثبات الشخصية"
+    elif not actions and doc_type == "utility_bill":
+        actions = "سداد الفاتورة عبر منافذ الدفع الإلكتروني"
+    if actions:
+        fields.append({"field_key": "actions", "field_label_ar": "الإجراءات المطلوبة", "field_value": str(actions)})
+
+    # 7. Additional detailed fields (Name, Address, Governorate, Job)
+    if entities.get("name"):
+        fields.append({"field_key": "name", "field_label_ar": "الاسم الكامل", "field_value": entities["name"]})
+    if entities.get("national_number") and str(entities["national_number"]) != str(doc_number):
+        fields.append({"field_key": "national_number", "field_label_ar": "الرقم القومي", "field_value": str(entities["national_number"])})
+    if entities.get("address"):
+        fields.append({"field_key": "address", "field_label_ar": "العنوان", "field_value": entities["address"]})
+    if entities.get("governorate"):
+        fields.append({"field_key": "governorate", "field_label_ar": "المحافظة", "field_value": entities["governorate"]})
+    if entities.get("job"):
+        fields.append({"field_key": "job", "field_label_ar": "المهنة", "field_value": entities["job"]})
+
+    resolved_session_id = str(session_id) if (session_id and not hasattr(session_id, "default")) else None
     document_id = store_document(
-        session_id,
-        file.filename,
-        file.content_type,
+        resolved_session_id,
+        getattr(file, "filename", None) or "document.jpg",
+        getattr(file, "content_type", None) or "image/jpeg",
         doc_type,
         summary,
         result.get("ocr_text", ""),
         fields,
     )
 
+    # Format clean key-value dictionary list for the frontend UI
+    api_fields: list[dict[str, str]] = []
+    if doc_type_ar:
+        api_fields.append({"doc_type": doc_type_ar})
+    if issuer:
+        api_fields.append({"issuer": str(issuer)})
+    if doc_number:
+        api_fields.append({"doc_number": str(doc_number)})
+    if dates_list:
+        api_fields.append({"dates": " / ".join(dates_list)})
+    elif result.get("dates"):
+        api_fields.append({"dates": ", ".join(result["dates"])})
+    if amount and str(amount).strip() and str(amount) != "لا يوجد":
+        api_fields.append({"amount": str(amount)})
+    if actions:
+        api_fields.append({"actions": str(actions)})
+
+    # Detail fields in Arabic for leftover rows
+    if entities.get("name"):
+        api_fields.append({"الاسم": entities["name"]})
+    if entities.get("address"):
+        api_fields.append({"العنوان": entities["address"]})
+    if entities.get("governorate"):
+        api_fields.append({"المحافظة": entities["governorate"]})
+    if entities.get("job"):
+        api_fields.append({"المهنة": entities["job"]})
+
+    next_steps = result.get("next_steps") or suggested_next_steps(doc_type)
+
     return {
-        "document_type": doc_type,
+        "document_type": doc_type_ar,
         "summary_arabic": summary,
-        "fields": fields,
-        "next_steps": suggested_next_steps(doc_type),
+        "fields": api_fields,
+        "next_steps": next_steps,
         "document_id": document_id,
     }
 

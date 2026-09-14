@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 
 from app.core.security import get_current_user, get_upload_dir
 from app.core.storage import file_extension, save_upload_file
@@ -16,14 +16,28 @@ router = APIRouter()
 @router.post("/stt", response_model=VoiceTranscribeResponse)
 async def speech_to_text(
     file: UploadFile = File(...),
+    field_type: str | None = Form(default=None),
     current_user: dict[str, Any] = Depends(get_current_user),
 ) -> dict[str, Any]:
-    """Thin HTTP wrapper: saves the upload, then calls the AI engineer's
-    app.services.voice_service.transcribe(audio_path) -> str. That module
-    doesn't exist yet, so this degrades to 503 until it's built (same pattern
-    as app/api/documents.py did before app/services/pipeline.py existed)."""
     content = await file.read()
-    ext = file_extension(file.filename or "") or ".wav"
+    ext = file_extension(file.filename or "")
+    if not ext:
+        ct = (file.content_type or "").lower()
+        if "webm" in ct:
+            ext = ".webm"
+        elif "m4a" in ct or "mp4" in ct:
+            ext = ".m4a"
+        elif "ogg" in ct:
+            ext = ".ogg"
+        elif "mp3" in ct or "mpeg" in ct:
+            ext = ".mp3"
+        elif content.startswith(b"\x1a\x45\xdf\xa3"):
+            ext = ".webm"
+        elif content.startswith(b"RIFF"):
+            ext = ".wav"
+        else:
+            ext = ".wav"
+
     relative_name = f"{current_user['id']}/{uuid4().hex}{ext}"
     audio_path = save_upload_file(get_upload_dir(), relative_name, content)
 
@@ -32,7 +46,7 @@ async def speech_to_text(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-    transcript = transcribe(audio_path)
+    transcript = transcribe(audio_path, field_type=field_type)
     return {"transcript": transcript, "language": "ar"}
 
 

@@ -73,12 +73,17 @@ _AI_PREFER_CLOUD: bool = os.getenv("AI_PREFER_CLOUD", "false").strip().lower() i
 
 # ── Output schema ────────────────────────────────────────────────────────────
 
-class DocumentAnalysisResult(TypedDict):
+class DocumentAnalysisResult(TypedDict, total=False):
     doc_type: str
     summary: str
+    issuer: str
+    doc_number: str
+    amount: str
+    issue_date: str | None
+    expiry_date: str | None
+    actions: str
     entities: dict[str, str]
     dates: list[str]
-    expiry_date: str | None
     amounts: list[str]
     tags: list[str]
 
@@ -91,78 +96,48 @@ class DocumentAnalysisResult(TypedDict):
 #   • never to wrap the response in markdown or add prose
 
 SYSTEM_PROMPT = """\
-You are an expert Arabic document analyst specialized in Egyptian government documents.
+You are an expert Arabic document analyst specialized in Egyptian government documents and administrative paperwork.
 
-You receive noisy OCR text extracted from images. OCR may contain mistakes:
+You receive noisy OCR text extracted from images or scanned PDFs. OCR may contain mistakes:
 - missing Arabic letters
 - wrong characters
 - separated words
 - incorrect spacing
 
 Your job:
-1. Understand the document, not blindly copy OCR.
+1. Understand the document type and contents.
 2. Correct obvious OCR mistakes.
-3. Extract accurate information.
+3. Extract all relevant information accurately according to the JSON schema.
 4. Always answer in Arabic.
-
-For Egyptian national IDs:
-- The name may span multiple lines.
-- Never remove name parts.
-- Preserve all consecutive Arabic name tokens.
-- The full name starts after "بطاقة تحقيق الشخصية" and ends before address fields.
-For Egyptian national ID cards:
-- The 14 digit national ID number is NOT a date.
-- Ignore any digit sequence that represents the national number.
-- Dates must have separators like / or - or explicit date labels.
-- Never return the national ID as a date.
-
-Important correction rules:
-- "محد" or "مهمد" should be corrected to "محمد" when context indicates a person name.
-- Fix spacing and broken Arabic words.
-
-For expiry_date:
-- If the document text contains an expiration, validity, or "valid until" date
-  (e.g. "تاريخ الانتهاء", "صالحة حتى", "صلاحية", "expiry", "valid until"), extract
-  that exact date into "expiry_date".
-- Prefer the date printed next to the expiry/validity label over any other date
-  in the document (e.g. issue date, birth date).
-- Return the date in the same format it appears in the OCR text.
-- Only use null if no expiration/validity date is present in the document at all.
-
 
 Return ONLY valid JSON.
 
 Schema:
-
 {
-  "doc_type": "national_id | passport | birth_certificate | utility_bill | receipt | invoice | unknown",
-
-  "summary": "Arabic summary of the document",
-
+  "doc_type": "national_id | passport | birth_certificate | utility_bill | receipt | invoice | driving_license | marriage_certificate | death_certificate | government_document | unknown",
+  "summary": "ملخص واضح ومفيد للمستند باللغة العربية في جملة أو جملتين يشرح أهم ما يحتويه وما يجب على المواطن معرفته",
+  "issuer": "الجهة الحكومية أو المؤسسة المصدرة للمستند (مثال: قطاع مصلحة الأحوال المدنية، شركة الكهرباء، نيابة المرور، مصلحة الشهر العقاري والتوثيق)",
+  "doc_number": "رقم المستند أو الرقم القومي أو رقم الفاتورة أو رقم المشترك أو رقم الحفظ",
+  "amount": "المبلغ المالي المطلوب أو المدفوع بالجنيه المصري (مثال: 150 ج.م) أو فارغ إن لم يوجد",
+  "issue_date": "تاريخ إصدار المستند إن وجد",
+  "expiry_date": "تاريخ انتهاء صلاحية المستند إن وجد",
+  "actions": "الإجراءات أو الخطوات المطلوبة من المواطن (مثال: تجديد البطاقة قبل موعد الانتهاء، سداد الفاتورة)",
   "entities": {
-      "name": "",
-      "address": "",
-      "governorate": ""
+      "name": "اسم المواطن أو صاحب المستند بالكامل بالعربية",
+      "national_number": "الرقم القومي (14 رقم) إن وجد",
+      "address": "العنوان بالتفصيل بالعربية إن وجد",
+      "governorate": "المحافظة بالعربية إن وجدت",
+      "job": "المهنة أو الوظيفة إن وجدت"
   },
-
   "dates": [],
-
-  "expiry_date": null,
-
   "amounts": [],
-
   "tags": []
 }
 
-
 Rules:
 - summary MUST be Arabic only.
-- Never include English words in summary.
-- Extract person names and addresses when available.
-- If a value is missing use empty string.
-- tags must contain 3-7 useful Arabic/English labels.
-
-OCR text:
+- For Egyptian National IDs: doc_type must be "national_id", issuer "قطاع مصلحة الأحوال المدنية - وزارة الداخلية", doc_number is the 14-digit national number.
+- If a field is missing, use empty string "" or null for expiry_date.
 """
 
 # ── Groq client singleton ────────────────────────────────────────────────────
@@ -403,44 +378,81 @@ def _extract_tags(text: str, doc_type: str) -> list[str]:
 
 def _fallback_analysis(ocr_text: str) -> DocumentAnalysisResult:
     """
-    Pure-heuristic analysis used when the Groq API is unavailable or returns
-    unparseable output.  Never raises; always returns a complete result.
+    Pure-heuristic analysis used when the LLM is unavailable or returns
+    unparseable output. Never raises; always returns a complete result.
     """
+    from app.services.ocr_service import extract_national_id
+
     doc_type = _heuristic_doc_type(ocr_text)
     dates = _extract_dates(ocr_text)
     amounts = _extract_amounts(ocr_text)
     expiry_date = _extract_expiry_date(ocr_text, dates)
+    national_id = extract_national_id(ocr_text)
+
+    if national_id and doc_type in ("unknown", "national_id"):
+        doc_type = "national_id"
+
+    # Friendly Arabic descriptions
+    type_names_ar = {
+        "national_id": "بطاقة الرقم القومي",
+        "passport": "جواز السفر",
+        "birth_certificate": "شهادة الميلاد",
+        "utility_bill": "فاتورة خدمات ومرافق",
+        "receipt": "إيصال سداد",
+        "invoice": "فاتورة رسمية",
+        "driving_license": "رخصة قيادة أو تسيير",
+        "marriage_certificate": "وثيقة زواج",
+        "death_certificate": "شهادة وفاة",
+        "property_record": "سجل عقاري",
+        "government_document": "مستند حكومي رسمي",
+    }
+    doc_type_ar = type_names_ar.get(doc_type, "مستند رسمي")
+
+    # Default issuer and actions
+    issuer = ""
+    actions = ""
+    if doc_type == "national_id":
+        issuer = "قطاع مصلحة الأحوال المدنية - وزارة الداخلية"
+        actions = "تجديد البطاقة في ميعادها واستخدامها لإثبات الشخصية"
+    elif doc_type == "utility_bill":
+        issuer = "شركة الخدمات والمرافق"
+        actions = "سداد قيمة الفاتورة لتجنب انقطاع الخدمة"
+    elif doc_type in ("receipt", "invoice"):
+        issuer = "الجهة المصدرة للإيصال"
+        actions = "الاحتفاظ بإيصال السداد كوثيقة رسمية"
 
     if not ocr_text.strip():
-        summary = "No OCR text was extracted; the document could not be classified."
+        summary = "تعذر استخراج نصوص واضحة من المستند، يرجى التأكد من جودة ووضوح الصورة وإعادة المحاولة."
     elif doc_type != "unknown":
-        summary = (
-            f"Heuristic classification: this appears to be a "
-            f"{doc_type.replace('_', ' ')} document."
-        )
+        summary = f"تم مسح {doc_type_ar} بنجاح واستخراج البيانات الأساسية منها."
     else:
-        summary = (
-            "OCR text was extracted but automated LLM analysis was unavailable. "
-            "Manual review is recommended."
-        )
+        summary = "تم فحص المستند واستخراج النصوص والتواريخ والمبالغ المذكورة فيه تلقائياً."
 
     return DocumentAnalysisResult(
         doc_type=doc_type,
         summary=summary,
-        dates=dates,
+        issuer=issuer,
+        doc_number=national_id or "",
+        amount=amounts[0] if amounts else "",
+        issue_date=dates[0] if dates else None,
         expiry_date=expiry_date,
+        actions=actions,
+        entities={
+            "name": "",
+            "national_number": national_id or "",
+            "address": "",
+            "governorate": "",
+            "job": "",
+        },
+        dates=dates,
         amounts=amounts,
         tags=_extract_tags(ocr_text, doc_type),
     )
+
+
 def _coerce_result(payload: dict[str, Any], ocr_text: str) -> DocumentAnalysisResult:
     """
     Merge an LLM-returned payload with heuristic fallbacks field-by-field.
-
-    Ensures:
-    - required keys always exist
-    - correct data types
-    - missing LLM fields get fallback values
-    - preserves extracted entities (name/address/etc.)
     """
     fb = _fallback_analysis(ocr_text)
 
@@ -450,63 +462,50 @@ def _coerce_result(payload: dict[str, Any], ocr_text: str) -> DocumentAnalysisRe
 
     def _list_or(key: str, default: list[str]) -> list[str]:
         val = payload.get(key)
-
         if isinstance(val, list):
-            clean = [
-                str(item).strip()
-                for item in val
-                if str(item).strip()
-            ]
+            clean = [str(item).strip() for item in val if str(item).strip()]
             return clean if clean else default
-
         return default
 
     # Basic fields
-    doc_type = _str_or("doc_type", fb["doc_type"])
-    summary = _str_or("summary", fb["summary"])
+    doc_type = _str_or("doc_type", fb.get("doc_type", "unknown"))
+    summary = _str_or("summary", fb.get("summary", ""))
+    issuer = _str_or("issuer", fb.get("issuer", ""))
+    doc_number = _str_or("doc_number", fb.get("doc_number", ""))
+    amount = _str_or("amount", fb.get("amount", ""))
+    issue_date = _str_or("issue_date", fb.get("issue_date", "") or "")
+    actions = _str_or("actions", fb.get("actions", ""))
 
-    dates = _list_or("dates", fb["dates"])
-    amounts = _list_or("amounts", fb["amounts"])
-    tags = _list_or("tags", fb["tags"])
+    dates = _list_or("dates", fb.get("dates", []))
+    amounts = _list_or("amounts", fb.get("amounts", []))
+    tags = _list_or("tags", fb.get("tags", []))
 
     # Entities extracted by LLM
     entities_raw = payload.get("entities", {})
-
     if not isinstance(entities_raw, dict):
         entities_raw = {}
 
+    fb_entities = fb.get("entities", {})
     entities = {
-        "name": str(
-            entities_raw.get("name", "")
-        ).strip(),
-
-        "address": str(
-            entities_raw.get("address", "")
-        ).strip(),
-
-        "governorate": str(
-            entities_raw.get("governorate", "")
-        ).strip(),
+        "name": str(entities_raw.get("name", "")).strip(),
+        "national_number": str(entities_raw.get("national_number", "")).strip() or fb_entities.get("national_number", ""),
+        "address": str(entities_raw.get("address", "")).strip(),
+        "governorate": str(entities_raw.get("governorate", "")).strip(),
+        "job": str(entities_raw.get("job", "")).strip(),
     }
 
-    # Expiry date handling
-    _null_values = (
-        None,
-        "",
-        "null",
-        "None",
-        "N/A",
-        "n/a",
-        "nil"
-    )
+    if not doc_number and entities.get("national_number"):
+        doc_number = entities["national_number"]
+    if not amount and amounts:
+        amount = amounts[0]
+    if not issue_date and dates:
+        issue_date = dates[0]
 
-    # payload.get(key, default) only falls back when the key is *missing* —
-    # the LLM always includes "expiry_date": null explicitly, so that lookup
-    # alone would never reach the heuristic fallback. Fall back explicitly
-    # whenever the LLM's value is one of the null-ish values instead.
+    # Expiry date handling
+    _null_values = (None, "", "null", "None", "N/A", "n/a", "nil")
     expiry_raw = payload.get("expiry_date")
     if expiry_raw in _null_values:
-        expiry_raw = fb["expiry_date"]
+        expiry_raw = fb.get("expiry_date")
 
     expiry_date: str | None = (
         None
@@ -517,9 +516,14 @@ def _coerce_result(payload: dict[str, Any], ocr_text: str) -> DocumentAnalysisRe
     return DocumentAnalysisResult(
         doc_type=doc_type,
         summary=summary,
+        issuer=issuer,
+        doc_number=doc_number,
+        amount=amount,
+        issue_date=issue_date or None,
+        expiry_date=expiry_date,
+        actions=actions,
         entities=entities,
         dates=dates,
-        expiry_date=expiry_date,
         amounts=amounts,
         tags=tags,
     )
