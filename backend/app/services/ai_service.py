@@ -48,23 +48,18 @@ if _ENV_PATH.exists():
 else:
     load_dotenv()
 
-# ── Model selection ──────────────────────────────────────────────────────────
-# Override in .env: GROQ_MODEL=llama-3.3-70b-versatile for higher accuracy
+_AZURE_OPENAI_ENDPOINT: str = os.getenv(
+    "AZURE_OPENAI_ENDPOINT",
+    "https://raafat-abualazm96-1418-resource.services.ai.azure.com/openai/v1"
+)
+_AZURE_OPENAI_KEY: str = os.getenv("AZURE_OPENAI_KEY", "")
+_AZURE_OPENAI_DEPLOYMENT: str = os.getenv(
+    "AZURE_OPENAI_DEPLOYMENT",
+    "gpt-5.6-sol"
+)
 _GROQ_MODEL: str = os.getenv("GROQ_MODEL", "allam-2-7b")
 
 # ── Local AI (Ollama) ────────────────────────────────────────────────────────
-# A locally-run Ollama server is the DEFAULT provider for every AI call in
-# this module (document analysis and, via chat_completion(), the AI
-# assistant's Q&A) — documents are analyzed on this machine and never sent to
-# a third party unless AI_PREFER_CLOUD=true, or the local server is
-# unreachable, in which case Groq is used as the fallback (and the old
-# regex-only heuristic below that, if Groq is also unavailable).
-#
-# Requires Ollama running locally (https://ollama.com) with the configured
-# model pulled: `ollama pull <OLLAMA_MODEL>`. Arabic-capable model choices:
-# "qwen2.5:7b" (default — good multilingual quality/speed balance),
-# "aya-expanse:8b" (Cohere's Aya, tuned specifically for non-English
-# languages including Arabic), "llama3.1:8b".
 _OLLAMA_BASE_URL: str = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434").rstrip("/")
 _OLLAMA_MODEL: str = os.getenv("OLLAMA_MODEL", "qwen2.5:7b-egypt")
 _OLLAMA_TIMEOUT_SECONDS: float = float(os.getenv("OLLAMA_TIMEOUT_SECONDS", "180"))
@@ -261,6 +256,34 @@ def _ollama_chat_completion(
     raise RuntimeError("No available Ollama model could complete the request")
 
 
+def _azure_openai_chat_completion(
+    messages: list[dict[str, str]],
+    *,
+    temperature: float = 0.1,
+    max_tokens: int = 1024,
+    json_mode: bool = False,
+) -> str:
+    """Call Azure OpenAI chat completions endpoint."""
+    url = f"{_AZURE_OPENAI_ENDPOINT.rstrip('/')}/chat/completions"
+    headers = {
+        "api-key": _AZURE_OPENAI_KEY,
+        "Content-Type": "application/json",
+    }
+    payload: dict[str, Any] = {
+        "model": _AZURE_OPENAI_DEPLOYMENT,
+        "messages": messages,
+        "temperature": temperature,
+        "max_tokens": max_tokens,
+    }
+    if json_mode:
+        payload["response_format"] = {"type": "json_object"}
+
+    res = requests.post(url, headers=headers, json=payload, timeout=30)
+    res.raise_for_status()
+    data = res.json()
+    return (data.get("choices", [{}])[0].get("message", {}).get("content") or "").strip()
+
+
 def chat_completion(
     messages: list[dict[str, str]],
     *,
@@ -268,19 +291,18 @@ def chat_completion(
     max_tokens: int = 1024,
     json_mode: bool = False,
 ) -> str:
-    """Run one chat completion, preferring the local Ollama model.
+    """Run one chat completion across available providers.
 
-    Provider order: local Ollama (unless AI_PREFER_CLOUD=true) → Groq. Used
-    by both document analysis (below) and the AI assistant's Q&A
-    (app/services/ai_chat_service.py) so the "local by default, cloud as an
-    explicit override" policy applies everywhere this app calls an LLM, not
-    just document analysis.
-
-    Raises if every configured path fails — callers that have their own
-    non-LLM fallback (e.g. analyze_document_text's heuristic extraction)
-    should catch that themselves; callers with no such fallback (the AI
-    assistant) are meant to let it surface as a 500.
+    Provider order: Azure OpenAI (if key provided) -> Local Ollama (unless AI_PREFER_CLOUD) -> Groq.
     """
+    if _AZURE_OPENAI_KEY:
+        try:
+            return _azure_openai_chat_completion(
+                messages, temperature=temperature, max_tokens=max_tokens, json_mode=json_mode
+            )
+        except Exception as exc:
+            print(f"[AI SERVICE] Azure OpenAI call failed ({exc}); attempting fallback...")
+
     if not _AI_PREFER_CLOUD:
         try:
             return _ollama_chat_completion(
@@ -303,7 +325,7 @@ def chat_completion(
         return (completion.choices[0].message.content or "").strip()
     except Exception as exc:
         print(f"[AI SERVICE] Cloud Groq fallback unavailable ({exc})")
-        raise RuntimeError("AI Service unavailable: Local Ollama timed out and GROQ_API_KEY is not configured.") from exc
+        raise RuntimeError("AI Service unavailable: All providers failed.") from exc
 
 
 # ── Heuristic / fallback helpers ─────────────────────────────────────────────
