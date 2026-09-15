@@ -5,6 +5,7 @@ import { I18nManager } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { AuthProvider } from "@/store/authStore";
+import { AppearanceProvider } from "@/store/appearanceStore";
 
 // RTL only takes effect after the native app restarts (I18nManager caches
 // the layout direction natively), so this applies on the next reload.
@@ -13,17 +14,19 @@ I18nManager.forceRTL(true);
 
 export default function RootLayout() {
   return (
-    <AuthProvider>
-      <SafeAreaProvider>
-        <Stack screenOptions={{ headerShown: false }}>
-          <Stack.Screen name="index" />
-          <Stack.Screen name="login" />
-          <Stack.Screen name="register" />
-          <Stack.Screen name="(tabs)" />
-          <Stack.Screen name="services" />
-          <Stack.Screen name="+not-found" />
-        </Stack>
-      </SafeAreaProvider>
-    </AuthProvider>
+    <AppearanceProvider>
+      <AuthProvider>
+        <SafeAreaProvider>
+          <Stack screenOptions={{ headerShown: false }}>
+            <Stack.Screen name="index" />
+            <Stack.Screen name="login" />
+            <Stack.Screen name="register" />
+            <Stack.Screen name="(tabs)" />
+            <Stack.Screen name="services" />
+            <Stack.Screen name="+not-found" />
+          </Stack>
+        </SafeAreaProvider>
+      </AuthProvider>
+    </AppearanceProvider>
   );
 }
