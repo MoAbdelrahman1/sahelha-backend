@@ -14,7 +14,7 @@ function ApplicationCard({ app, c }: { app: ServiceApplication; c: ReturnType<ty
   return (
     <View
       style={{
-        backgroundColor: c.surface,
+        backgroundColor: c.cardBg,
         borderRadius: 16,
         borderWidth: 1.5,
         borderColor: c.border,
@@ -140,7 +140,7 @@ export default function ApplicationsScreen() {
               paddingHorizontal: 20,
               alignItems: "center",
               gap: 12,
-              backgroundColor: c.surface,
+              backgroundColor: c.cardBg,
               borderRadius: 16,
               borderWidth: 1,
               borderColor: c.border,
@@ -165,7 +165,7 @@ export default function ApplicationsScreen() {
                 marginTop: 6,
               }}
             >
-              <Text style={{ fontFamily: "Cairo_700Bold", fontSize: 15, color: c.primaryFg }}>
+              <Text style={{ fontFamily: "Cairo_700Bold", fontSize: 15, color: c.primaryText }}>
                 تصفح الخدمات الحكومية (١٨ خدمة)
               </Text>
             </Pressable>

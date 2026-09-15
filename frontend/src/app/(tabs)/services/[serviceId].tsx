@@ -2,7 +2,7 @@ import React from "react";
 import { View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 
-import { VoiceFormWizard } from "@/features/forms/VoiceFormWizard";
+import { ServiceApplicationScreen } from "@/features/services/ServiceApplicationScreen";
 
 export default function ServiceDetailScreen() {
   const { serviceId } = useLocalSearchParams<{ serviceId: string }>();
@@ -14,7 +14,7 @@ export default function ServiceDetailScreen() {
 
   return (
     <View className="flex-1 bg-white">
-      <VoiceFormWizard
+      <ServiceApplicationScreen
         serviceId={serviceId}
         onCancel={() => router.back()}
       />

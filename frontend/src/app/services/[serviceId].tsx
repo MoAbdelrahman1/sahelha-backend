@@ -3,7 +3,7 @@ import { ActivityIndicator, SafeAreaView, StatusBar, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 
 import { ThemeProvider } from "@/features/theme/ThemeContext";
-import { VoiceFormWizard } from "@/features/forms/VoiceFormWizard";
+import { ServiceApplicationScreen } from "@/features/services/ServiceApplicationScreen";
 
 export default function ServiceDetailScreen() {
   const { serviceId } = useLocalSearchParams<{ serviceId: string }>();
@@ -21,7 +21,7 @@ export default function ServiceDetailScreen() {
     <ThemeProvider>
       <SafeAreaView style={{ flex: 1, backgroundColor: "#FFFFFF" }}>
         <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
-        <VoiceFormWizard
+        <ServiceApplicationScreen
           serviceId={serviceId}
           onCancel={() => router.back()}
         />
