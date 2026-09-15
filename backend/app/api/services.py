@@ -259,7 +259,53 @@ def get_service_form_schema(service_id: str) -> ServiceFormSchemaResponse:
     if not matched:
         raise HTTPException(status_code=404, detail="Service not found")
 
-    fields = SERVICE_FORM_SCHEMAS.get(service_id, DEFAULT_FORM_FIELDS)
+    if service_id in SERVICE_FORM_SCHEMAS:
+        fields = SERVICE_FORM_SCHEMAS[service_id]
+    else:
+        req_docs = matched.get("required_documents", [])
+        title = matched.get("title", "الخدمة")
+        fields = [
+            FormFieldSchema(
+                id="full_name",
+                label="الاسم الرباعي لمقدم الطلب",
+                prompt=f"أهلاً بك في التقديم الصوتي لخدمة {title}. من فضلك، قول اسمك الرباعي بالكامل زي ما هو مكتوب في بطاقة الرقم القومي",
+                field_type="name",
+                placeholder="مثال: محمد أحمد محمود علي",
+            ),
+            FormFieldSchema(
+                id="national_id",
+                label="الرقم القومي (14 رقم)",
+                prompt="من فضلك، قول رقمك القومي المكون من 14 رقم",
+                field_type="national_id",
+                placeholder="مثال: 29801011234567",
+            ),
+            FormFieldSchema(
+                id="phone",
+                label="رقم الموبايل للتواصل",
+                prompt="ايه هو رقم الموبايل للتواصل ومتابعة طلب التقديم؟",
+                field_type="phone",
+                placeholder="مثال: 01012345678",
+            ),
+        ]
+        for idx, doc_name in enumerate(req_docs, 1):
+            fields.append(
+                FormFieldSchema(
+                    id=f"doc_confirm_{idx}",
+                    label=f"تأكيد جاهزية: {doc_name}",
+                    prompt=f"تطلب هذه الخدمة توفر ({doc_name}). هل المستند جاهز معاك وموجود؟ قول نعم أو لا",
+                    field_type="confirmation",
+                    placeholder="نعم / لا",
+                )
+            )
+        fields.append(
+            FormFieldSchema(
+                id="delivery_address",
+                label="عنوان التوصيل أو الاستلام بالمنزل",
+                prompt="من فضلك، قول عنوان التوصيل بالتفصيل: المحافظة والمنطقة واسم الشارع ورقم العقار",
+                field_type="text",
+                placeholder="المحافظة، المدينة، الشارع، ورقم العقار",
+            )
+        )
 
     return ServiceFormSchemaResponse(
         service_id=matched["id"],

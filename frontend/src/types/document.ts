@@ -11,6 +11,7 @@ export type DocType =
   | "utility_bill"
   | "receipt"
   | "invoice"
+  | "driving_license"
   | "work_permit"
   | "marriage_certificate"
   | "death_certificate"
@@ -22,6 +23,8 @@ export type DocEntities = {
   address?: string;
   governorate?: string;
   national_number?: string;
+  doc_number?: string;
+  issuer?: string;
 };
 
 export type Document = {
@@ -49,6 +52,7 @@ export const DOC_TYPE_LABELS: Record<DocType, string> = {
   utility_bill: "فاتورة مرافق",
   receipt: "إيصال",
   invoice: "فاتورة ضريبية",
+  driving_license: "رخصة قيادة / تسيير",
   work_permit: "تصريح عمل",
   marriage_certificate: "عقد زواج",
   death_certificate: "شهادة وفاة",

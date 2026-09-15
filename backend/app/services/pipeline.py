@@ -191,6 +191,20 @@ def process_document_pipeline(image_path: str) -> dict[str, Any]:
             except Exception as e:
                 _safe_print(f"[ID CROP FALLBACK] Non-fatal card cropping issue: {e}")
 
+        elif analysis.get("doc_type") == "birth_certificate":
+            try:
+                from app.services.ocr_service import extract_birth_certificate_national_id
+                import cv2
+                img = cv2.imread(image_path)
+                if img is not None:
+                    nid = extract_birth_certificate_national_id(img, ocr_context=ocr_text)
+                    if nid:
+                        analysis.setdefault("entities", {})
+                        analysis["entities"]["national_number"] = nid
+                        analysis["doc_number"] = nid
+            except Exception as e:
+                _safe_print(f"[BIRTH NID FALLBACK] Non-fatal issue: {e}")
+
         response.update(analysis)
 
         _safe_print("[LLM ANALYSIS]")

@@ -1,5 +1,6 @@
 import { apiClient } from "@/lib/api/client";
 import { toApiError } from "@/lib/api/errors";
+import { Platform } from "react-native";
 
 // Mirrors the confirmed Swagger contract for POST /api/document/analyze —
 // see docs/API.md. `fields` deliberately keeps arbitrary backend-chosen keys
@@ -19,17 +20,28 @@ export type AnalyzeDocumentResponse = {
 // NOTE: /api/documents/upload also exists but only returns
 // {doc_id, status, message} with no analysis — using it here would upload
 // the same image twice for no benefit, so this screen calls /analyze only.
-export async function analyzeDocument(photoUri: string): Promise<AnalyzeDocumentResponse> {
+export async function analyzeDocument(photoUri: string, webFile?: File | null): Promise<AnalyzeDocumentResponse> {
   const formData = new FormData();
-  formData.append("file", {
-    uri: photoUri,
-    name: "document.jpg",
-    type: "image/jpeg",
-  } as unknown as Blob);
+  
+  if (Platform.OS === "web" && webFile) {
+    formData.append("file", webFile);
+  } else if (Platform.OS === "web" && photoUri.startsWith("blob:")) {
+    const res = await fetch(photoUri);
+    const blob = await res.blob();
+    formData.append("file", blob, "document.jpg");
+  } else {
+    formData.append("file", {
+      uri: photoUri,
+      name: "document.jpg",
+      type: "image/jpeg",
+    } as unknown as Blob);
+  }
 
   try {
+    // Override the default 15s timeout because the OCR+LLM pipeline is heavy
     const { data } = await apiClient.post<AnalyzeDocumentResponse>("/api/document/analyze", formData, {
       headers: { "Content-Type": "multipart/form-data" },
+      timeout: 120000, 
     });
     return data;
   } catch (error) {

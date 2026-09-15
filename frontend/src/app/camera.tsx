@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { AccessibilityInfo, ActivityIndicator, Linking, Pressable, ScrollView, Text, View } from "react-native";
+import { AccessibilityInfo, ActivityIndicator, Linking, Platform, Pressable, ScrollView, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
@@ -11,24 +11,12 @@ import { buildScanResultRows } from "@/features/scan/resultRows";
 import { useTtsPlayer } from "@/features/scan/useTtsPlayer";
 import { useScreenReaderEnabled } from "@/features/scan/useScreenReaderEnabled";
 import { ApiError } from "@/lib/api/errors";
-
-// Reached only from Home's big "مسح مستند جديد" button (not a tab — matches
-// the design brief's "one primary action, consistent position" rule and
-// SPRINT_PLAN.md §5). Flow: capture with the SYSTEM camera
-// (expo-image-picker's launchCameraAsync) -> confirm -> POST
-// /api/document/analyze -> populate the result rows. Deliberately no
-// expo-camera / live viewfinder: a live preview is not useful to a blind
-// user, and the system camera already ships with Android's own
-// accessibility support. This call is intentionally left on the existing
-// legacy endpoint for this pass (see the refactor plan) — only the shell
-// around it is restyled to the new design system.
-//
-// RTL note: hand-mirrored (row-reverse containers + right-aligned text) like
-// the rest of the app, not via I18nManager.
+import { useDocuments } from "@/store/documentsStore";
+import { flattenAnalyzeFields } from "@/features/scan/fields";
+import type { DocType } from "@/types/document";
 
 type FlowState = "idle" | "captured" | "analyzing";
 
-// TODO(Asma): confirm final Arabic copy for every string below.
 const PERMISSION_DENIED_MESSAGE_AR =
   "يحتاج التطبيق إلى إذن الكاميرا لالتقاط صورة المستند. يرجى المحاولة مرة أخرى.";
 const PERMISSION_BLOCKED_MESSAGE_AR =
@@ -49,9 +37,7 @@ export default function CameraScreen() {
   const router = useRouter();
   const [flowState, setFlowState] = useState<FlowState>("idle");
   const [photoUri, setPhotoUri] = useState<string | null>(null);
-  // Kept for later use (not displayed this round) — the analyze response's
-  // document_id, needed once follow-up features (archive, sharing, etc.)
-  // exist. Storing the whole response is enough; nothing extra is needed.
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [analyzeResult, setAnalyzeResult] = useState<AnalyzeDocumentResponse | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [permissionBlocked, setPermissionBlocked] = useState(false);
@@ -60,16 +46,16 @@ export default function CameraScreen() {
   const { speak, speakingId } = useTtsPlayer({
     onError: (message) => {
       setErrorMessage(message);
-      // This announcement is TTS-failure copy, never the row text TTS was
-      // about to speak, and only fires when TTS itself failed to start — so
-      // it can never double up with TTS audio (see the mic handler below
-      // for the matching anti-clash rule on the other side of this flow).
       if (screenReaderEnabled) AccessibilityInfo.announceForAccessibility(message);
     },
   });
 
   const capturePhoto = async () => {
     setErrorMessage(null);
+    if (Platform.OS === "web") {
+      await pickFromGallery();
+      return;
+    }
 
     const permission = await ImagePicker.requestCameraPermissionsAsync();
     if (!permission.granted) {
@@ -82,6 +68,7 @@ export default function CameraScreen() {
     try {
       const result = await ImagePicker.launchCameraAsync({ quality: 0.6 });
       if (result.canceled || !result.assets || result.assets.length === 0) return;
+      setSelectedFile(null);
       setPhotoUri(result.assets[0].uri);
       setAnalyzeResult(null);
       setFlowState("captured");
@@ -92,6 +79,28 @@ export default function CameraScreen() {
 
   const pickFromGallery = async () => {
     setErrorMessage(null);
+    if (Platform.OS === "web") {
+      try {
+        const input = document.createElement("input");
+        input.type = "file";
+        input.accept = "image/*,application/pdf,.pdf";
+        input.onchange = () => {
+          const file = input.files?.[0];
+          if (file) {
+            setSelectedFile(file);
+            setPhotoUri(URL.createObjectURL(file));
+            setAnalyzeResult(null);
+            setFlowState("captured");
+          }
+        };
+        input.click();
+        return;
+      } catch {
+        setErrorMessage(CAPTURE_FAILED_MESSAGE_AR);
+        return;
+      }
+    }
+
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) {
       setErrorMessage(permission.canAskAgain ? PERMISSION_DENIED_MESSAGE_AR : PERMISSION_BLOCKED_MESSAGE_AR);
@@ -100,6 +109,7 @@ export default function CameraScreen() {
     try {
       const result = await ImagePicker.launchImageLibraryAsync({ quality: 0.6 });
       if (result.canceled || !result.assets || result.assets.length === 0) return;
+      setSelectedFile(null);
       setPhotoUri(result.assets[0].uri);
       setAnalyzeResult(null);
       setFlowState("captured");
@@ -108,15 +118,54 @@ export default function CameraScreen() {
     }
   };
 
+  const { addDocument, refreshDocuments } = useDocuments();
+
   const confirmAndAnalyze = async () => {
     if (!photoUri) return;
     setErrorMessage(null);
     setFlowState("analyzing");
-    AccessibilityInfo.announceForAccessibility(ANALYZING_ANNOUNCEMENT_AR);
+    if (Platform.OS !== "web") {
+      AccessibilityInfo.announceForAccessibility(ANALYZING_ANNOUNCEMENT_AR);
+    }
 
     try {
-      const result = await analyzeDocument(photoUri);
+      const result = await analyzeDocument(photoUri, selectedFile);
       setAnalyzeResult(result);
+      
+      const extractedFields = flattenAnalyzeFields(result.fields);
+      const getField = (keys: string[]) => extractedFields.find(f => keys.includes(f.label))?.value;
+      
+      const dt = (result.document_type || "").toLowerCase();
+      let docTypeMapped: DocType = "unknown";
+      if (dt.includes("national_id") || dt.includes("قومي")) docTypeMapped = "national_id";
+      else if (dt.includes("driving_license") || dt.includes("قيادة") || dt.includes("تسيير") || dt.includes("مرور")) docTypeMapped = "driving_license";
+      else if (dt.includes("passport") || dt.includes("جواز")) docTypeMapped = "passport";
+      else if (dt.includes("birth_certificate") || dt.includes("ميلاد")) docTypeMapped = "birth_certificate";
+      else if (dt.includes("utility_bill") || dt.includes("مرافق") || dt.includes("كهرباء") || dt.includes("مياه")) docTypeMapped = "utility_bill";
+      else if (dt.includes("receipt") || dt.includes("إيصال")) docTypeMapped = "receipt";
+      else if (dt.includes("invoice") || dt.includes("فاتورة")) docTypeMapped = "invoice";
+
+      addDocument({
+        id: result.document_id || Date.now(),
+        status: "done",
+        doc_type: docTypeMapped,
+        ai_summary: result.summary_arabic,
+        ocr_text: "",
+        entities: {
+          name: getField(["name", "الاسم"]),
+          address: getField(["address", "العنوان", "address-gov"]),
+          governorate: getField(["governorate", "المحافظة"]),
+          national_number: getField(["national_number", "national-number", "الرقم القومي"]),
+        },
+        dates: getField(["dates"]) ? [getField(["dates"])!] : [],
+        amounts: getField(["amount"]) ? [getField(["amount"])!] : [],
+        expiry_date: getField(["expiry_date", "expiry"]) ?? null,
+        tags: ["scanned"],
+        image_url: photoUri,
+        created_at: new Date().toISOString(),
+      });
+
+      refreshDocuments();
     } catch (error) {
       setErrorMessage(error instanceof ApiError ? error.friendlyMessageAr : ANALYZE_FAILED_FALLBACK_AR);
     } finally {
@@ -124,8 +173,6 @@ export default function CameraScreen() {
     }
   };
 
-  // Gated on a real, successful analyze response — no rows (not even
-  // placeholder "—" rows) render during idle/captured/analyzing/error states.
   const rows = analyzeResult ? buildScanResultRows(analyzeResult) : [];
 
   if (flowState === "analyzing") {
@@ -237,14 +284,6 @@ export default function CameraScreen() {
                   showDivider={index < rows.length - 1}
                   isSpeaking={speakingId === row.id}
                   onSpeakerPress={() => {
-                    // Anti-clash design: never call
-                    // AccessibilityInfo.announceForAccessibility with this
-                    // row's text here. TTS is about to speak this exact
-                    // content out loud, and pairing that with a screen-reader
-                    // announcement of the same text would produce two
-                    // overlapping voices reading the same thing. TTS playback
-                    // itself always starts on tap regardless of screen-reader
-                    // state — only the announcement is what's being avoided.
                     void speak(row.value, row.id);
                   }}
                   speakerAccessibilityLabel={`استمع إلى ${row.label}`}

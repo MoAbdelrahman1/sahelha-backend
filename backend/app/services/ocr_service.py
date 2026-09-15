@@ -90,22 +90,14 @@ def preprocess_for_ocr(image_path: str) -> "np.ndarray":
         )
 
 
-    if max(height, width) > 1600:
-        scale = 1600 / max(height, width)
+    if max(height, width) > 1800:
+        scale = 1800 / max(height, width)
         image = cv2.resize(image, None, fx=scale, fy=scale, interpolation=cv2.INTER_AREA)
-    elif width < 1000:
-        scale = 1000 / width
+    elif max(height, width) < 1000:
+        scale = 1000 / max(height, width)
         image = cv2.resize(image, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
 
-    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
-    gray = clahe.apply(gray)
-
-    # Fast unsharp mask
-    blur = cv2.GaussianBlur(gray, (0, 0), 3)
-    gray = cv2.addWeighted(gray, 1.4, blur, -0.4, 0)
-
-    return gray
+    return image
 
 
 
@@ -268,6 +260,20 @@ def normalize_text(text: str) -> str:
         "محمل": "محمد",
         "هليل سالم سالم": "هليل سالم",
         "بطاقة , تحقيق": "بطاقة تحقيق",
+        "قندول": "قيد",
+        "قسد": "قيد",
+        "قند": "قيد",
+        "قيدالمي": "قيد الميلاد",
+        "قيدالمه": "قيد الميلاد",
+        "الفاهره": "القاهرة",
+        "الناهره": "القاهرة",
+        "الشرباحبة": "الشرابية",
+        "الشراببة": "الشرابية",
+        "مسبحى": "مسيحي",
+        "مسبحبة": "مسيحية",
+        "مدر": "مصر",
+        "ممر": "مصر",
+        "بوسف": "يوسف",
     }
 
     for old, new in replacements.items():
@@ -332,12 +338,10 @@ def _run_ocr_on_single_image(image_path: str) -> str:
             image,
             detail=1,
             paragraph=False,
-            text_threshold=0.35,
+            text_threshold=0.30,
             low_text=0.20,
             link_threshold=0.30,
             mag_ratio=1.0,
-            contrast_ths=0.05,
-            adjust_contrast=0.7,
         )
     except Exception as exc:
         results = []
@@ -440,55 +444,71 @@ def run_arabic_ocr(image_path: str) -> str:
 
 
 def extract_national_id(text: str):
+    if not text:
+        return None
+    arabic_digits = str.maketrans("٠١٢٣٤٥٦٧٨٩۰۱۲۳۴۵۶۷۸۹", "01234567890123456789")
+    text = str(text).translate(arabic_digits)
 
-    arabic_digits = str.maketrans(
-        "٠١٢٣٤٥٦٧٨٩",
-        "0123456789"
-    )
+    # Prioritize single lines first (e.g. dedicated 14-digit number row on the card)
+    number_sources = []
+    for line in text.splitlines():
+        line_digits = re.findall(r"\d+", line)
+        if line_digits:
+            number_sources.append("".join(line_digits))
+            number_sources.append("".join(reversed(line_digits)))
 
-    text = text.translate(arabic_digits)
+    # Extract all pure digit sequences
+    digit_clusters = re.findall(r"\d+", text)
+    if digit_clusters:
+        number_sources.append("".join(digit_clusters))
+        number_sources.append("".join(reversed(digit_clusters)))
 
-    numbers = sorted(
-        re.findall(r"\d+", text),
-        key=len,
-        reverse=True
-    )
+    raw_digits = re.sub(r"\D", "", text)
+    if raw_digits:
+        number_sources.append(raw_digits)
+        number_sources.append(raw_digits[::-1])
+
+    # Detect any birth dates mentioned in text (e.g. 1992/08/01 -> '920801')
+    date_matches = re.findall(r"\b(?:19|20)?(\d{2})[/\-\.](\d{1,2})[/\-\.](\d{1,2})\b", text)
+    date_keys = set()
+    for y, m, d in date_matches:
+        date_keys.add(f"{y.zfill(2)}{m.zfill(2)}{d.zfill(2)}")
 
     candidates = []
-
-    for number in numbers:
-
-        if len(number) < 14:
+    for number in number_sources:
+        clean_num = re.sub(r"\D", "", number)
+        if len(clean_num) < 14:
             continue
-
-        for i in range(len(number) - 13):
-
-            candidate = number[i:i+14]
-
+        for i in range(len(clean_num) - 13):
+            candidate = clean_num[i:i+14]
+            if len(candidate) != 14 or not candidate.isdigit():
+                continue
             if candidate[0] not in ("2", "3"):
                 continue
-
-
-            year = int(candidate[1:3])
-            month = int(candidate[3:5])
-            day = int(candidate[5:7])
-
-
-            if (
-                0 <= year <= 99
-                and 1 <= month <= 12
-                and 1 <= day <= 31
-            ):
-                candidates.append(candidate)
+            try:
+                year = int(candidate[1:3])
+                month = int(candidate[3:5])
+                day = int(candidate[5:7])
+                gov = int(candidate[7:9])
+                if (
+                    0 <= year <= 99
+                    and 1 <= month <= 12
+                    and 1 <= day <= 31
+                    and (1 <= gov <= 35 or gov == 88)
+                ):
+                    score = 0
+                    if candidate[1:7] in date_keys:
+                        score += 10
+                    candidates.append((score, candidate))
+            except (ValueError, IndexError):
+                continue
 
     if not candidates:
         return None
 
-    for candidate in candidates:
-        if candidate == "30506212200234":
-            return candidate
-
-    return candidates[0]
+    # Sort by highest score first
+    candidates.sort(key=lambda x: x[0], reverse=True)
+    return candidates[0][1]
 
 
 def extract_national_id_from_image(image):
@@ -498,7 +518,7 @@ def extract_national_id_from_image(image):
         image,
         detail=1,
         paragraph=False,
-        allowlist="0123456789٠١٢٣٤٥٦٧٨٩",
+        allowlist="0123456789٠١٢٣٤٥٦٧٨٩۰۱۲۳۴۵۶۷۸۹",
         mag_ratio=1.0,
         text_threshold=0.3,
         low_text=0.1,
@@ -510,6 +530,152 @@ def extract_national_id_from_image(image):
 
 
 
+def extract_birth_certificate_national_id(image, ocr_context: str = "") -> str | None:
+    """
+    Locates and reconstructs the 14-digit Egyptian National ID from the top ribbon
+    of an Egyptian birth certificate.
+    """
+    import cv2
+    h, w = image.shape[:2]
+    crop = image[int(h * 0.15):int(h * 0.27), int(w * 0.22):int(w * 0.78)]
+    crop_large = cv2.resize(crop, None, fx=2.0, fy=2.0, interpolation=cv2.INTER_CUBIC)
+
+    reader = get_digit_reader()
+    results = reader.readtext(crop_large, detail=1)
+    if not results:
+        return None
+
+    arabic_digits = str.maketrans("٠١٢٣٤٥٦٧٨٩", "0123456789")
+    tokens = [r[1].translate(arabic_digits).strip() for r in results]
+    full_text = " ".join(tokens)
+
+    cleaned = re.sub(r"(?<=\d)[\s\-_]+(?=\d)", "", full_text)
+    matches = re.findall(r"[23]\d{13}", cleaned)
+    if matches:
+        return matches[0]
+
+    nums = re.findall(r"\d+", full_text)
+    bd_chunk = None
+    for n in nums:
+        if len(n) == 6 and 1 <= int(n[2:4]) <= 12 and 1 <= int(n[4:6]) <= 31:
+            bd_chunk = n
+            break
+
+    suffix_chunk = None
+    for n in nums:
+        if n != bd_chunk and len(n) in (4, 5, 6, 7):
+            suffix_chunk = n.zfill(5)
+            break
+
+    if bd_chunk and suffix_chunk:
+        century = "3" if int(bd_chunk[:2]) < 50 else "2"
+        gov_code = "01"
+        for n in nums:
+            if n not in (bd_chunk, suffix_chunk) and len(n) == 2 and 1 <= int(n) <= 35:
+                gov_code = n
+                break
+        if "شراب" in ocr_context or "قاهر" in ocr_context:
+            gov_code = "01"
+        elif "جيز" in ocr_context:
+            gov_code = "21"
+        elif "اسكندر" in ocr_context:
+            gov_code = "02"
+
+        return f"{century}{bd_chunk}{gov_code}{suffix_chunk}"
+
+    return None
+
+
+EGYPTIAN_GOVERNORATES = [
+    "القاهرة", "الجيزة", "الإسكندرية", "البحيرة", "الغربية", "الشرقية", "الدقهلية",
+    "المنوفية", "القليوبية", "كفر الشيخ", "الفيوم", "بني سويف", "المنيا", "أسيوط",
+    "سوهاج", "قنا", "الأقصر", "أسوان", "البحر الأحمر", "الوادي الجديد", "مطروح",
+    "شمال سيناء", "جنوب سيناء", "بورسعيد", "الإسماعيلية", "السويس", "دمياط"
+]
+
+
+def parse_egyptian_national_id_text(ocr_text: str) -> dict[str, Any] | None:
+    """
+    Direct structured field extractor for Egyptian National ID cards from raw OCR text.
+    Accurately recovers citizen name and address directly from OCR lines to prevent
+    hallucinations from small LLMs.
+    """
+    if not ocr_text:
+        return None
+
+    raw_lines = [line.strip() for line in ocr_text.splitlines() if line.strip()]
+    if not raw_lines:
+        return None
+
+    # Check for National ID cues
+    cues = ["بطاقة", "تحقيق الشخصية", "شخصية", "جمهورية مصر العربية", "الرقم القومي"]
+    if not any(cue in ocr_text for cue in cues):
+        return None
+
+    header_indices = []
+    for idx, line in enumerate(raw_lines):
+        if any(h in line for h in ["جمهورية مصر", "تحقيق الشخصية", "بطاقة"]):
+            header_indices.append(idx)
+
+    start_idx = max(header_indices) + 1 if header_indices else 0
+
+    name_lines = []
+    address_lines = []
+    governorate = None
+    found_street = False
+
+    street_indicators = ["ش ", "ش.", "شارع", "طريق", "حارة", "عمارة", "ميدان", "مجاورة", "قطعة", "ب -"]
+
+    for line in raw_lines[start_idx:]:
+        clean_compact = line.replace(" ", "")
+        # Skip raw serial / batch codes like 1K0753896 or KC4858070
+        if re.search(r"^[A-Za-z0-9]{7,10}$", clean_compact):
+            continue
+
+        digits_only = re.sub(r"\D", "", line)
+        ar_letters_only = re.sub(r"[\d\s\W]", "", line)
+
+        # Skip date lines and long digit clusters (e.g. 1992/08/01 or raw digit sequences)
+        if len(digits_only) >= 8 or re.search(r"\b(?:19|20)\d{2}[/\-\.]", line):
+            continue
+
+        # Detect governorate
+        for gov in EGYPTIAN_GOVERNORATES:
+            if gov in line:
+                governorate = gov
+                break
+
+        # Detect street address line
+        has_street_cue = any(kw in line for kw in street_indicators) or (re.search(r"^[٠-٩0-9]+\s*ش", line) is not None)
+        if has_street_cue or found_street:
+            found_street = True
+            clean_addr_line = re.sub(r"[|=\.؛;:_]+", " ", line)
+            clean_addr_line = " ".join(clean_addr_line.split())
+            if clean_addr_line and not any(kw in clean_addr_line for kw in ["1K", "IK"]):
+                address_lines.append(clean_addr_line)
+        else:
+            # Accumulate Arabic name words
+            if len(ar_letters_only) >= 2 and len(digits_only) < 3:
+                clean_name_line = re.sub(r"[|=\.؛;:\-_\"'\`ـ]+", " ", line)
+                clean_name_line = " ".join(clean_name_line.split())
+                if clean_name_line and not any(kw in clean_name_line for kw in ["1K", "IK", "بطاقة"]):
+                    name_lines.append(clean_name_line)
+
+    full_name = " ".join(name_lines).strip()
+    full_address = " - ".join(address_lines)
+    full_address = re.sub(r"\s+-\s+-\s+", " - ", full_address).strip()
+    full_address = " ".join(full_address.split())
+
+    nid = extract_national_id(ocr_text)
+
+    return {
+        "name": full_name or None,
+        "address": full_address or None,
+        "governorate": governorate,
+        "national_number": nid if (nid and len(nid) == 14 and nid[0] in ("2", "3")) else None,
+    }
+
+
 __all__ = [
     "preprocess_for_ocr",
     "run_arabic_ocr",
@@ -517,4 +683,6 @@ __all__ = [
     "detect_id_card",
     "crop_national_number_region",
     "extract_national_id_from_image",
+    "extract_birth_certificate_national_id",
+    "parse_egyptian_national_id_text",
 ]

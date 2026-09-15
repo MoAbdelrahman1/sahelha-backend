@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import sqlite3
 from typing import Any
 
@@ -147,9 +148,19 @@ async def analyze_document(
             os.unlink(tmp_path)
 
 
-    doc_type = result.get("doc_type", "unknown")
-    summary = result.get("summary", "")
-    entities = result.get("entities", {})
+    from app.services.ai_service import _coerce_result
+
+    coerced = _coerce_result(result, result.get("ocr_text", ""))
+
+    doc_type = coerced.get("doc_type", "unknown")
+    summary = coerced.get("summary", "")
+    entities = coerced.get("entities", {})
+    issuer = coerced.get("issuer", "")
+    doc_number = coerced.get("doc_number", "")
+    amount = coerced.get("amount", "")
+    actions = coerced.get("actions", "")
+    issue_date = coerced.get("issue_date")
+    expiry_date = coerced.get("expiry_date")
 
     doc_type_labels = {
         "national_id": "بطاقة رقم قومي",
@@ -174,59 +185,63 @@ async def analyze_document(
     fields.append({"field_key": "doc_type", "field_label_ar": "نوع المستند", "field_value": doc_type_ar})
 
     # 2. Issuer
-    issuer = result.get("issuer") or entities.get("issuer")
-    if not issuer and doc_type == "national_id":
-        issuer = "قطاع مصلحة الأحوال المدنية - وزارة الداخلية"
-    elif not issuer and doc_type == "driving_license":
-        issuer = "الإدارة العامة للمرور - وزارة الداخلية"
-    elif not issuer and doc_type == "utility_bill":
-        issuer = "شركة الخدمات والمرافق"
     if issuer:
         fields.append({"field_key": "issuer", "field_label_ar": "الجهة الحكومية", "field_value": str(issuer)})
 
     # 3. Document Number
-    doc_number = result.get("doc_number") or entities.get("national_number") or entities.get("doc_number")
-    if doc_number:
+    if doc_type == "national_id":
+        if doc_number and len(str(doc_number)) == 14 and str(doc_number).isdigit():
+            fields.append({"field_key": "doc_number", "field_label_ar": "الرقم القومي", "field_value": str(doc_number)})
+    elif doc_number:
         fields.append({"field_key": "doc_number", "field_label_ar": "رقم المستند", "field_value": str(doc_number)})
 
     # 4. Dates & Expiry
-    issue_date = result.get("issue_date")
-    expiry_date = result.get("expiry_date")
     dates_list = []
-    if issue_date:
-        dates_list.append(f"إصدار: {issue_date}")
-    if expiry_date:
-        dates_list.append(f"انتهاء: {expiry_date}")
-    if dates_list:
-        fields.append({"field_key": "dates", "field_label_ar": "تاريخ الإصدار والانتهاء", "field_value": " / ".join(dates_list)})
-    elif result.get("dates"):
-        fields.append({"field_key": "dates", "field_label_ar": "التواريخ", "field_value": ", ".join(result["dates"])})
+    clean_nid = re.sub(r"\D", "", str(doc_number or ""))
+    derived_birthdate = None
+    if len(clean_nid) == 14 and clean_nid[0] in ("2", "3"):
+        century = 1900 if clean_nid[0] == "2" else 2000
+        yr = century + int(clean_nid[1:3])
+        mo = int(clean_nid[3:5])
+        day = int(clean_nid[5:7])
+        if 1 <= mo <= 12 and 1 <= day <= 31:
+            derived_birthdate = f"{yr:04d}/{mo:02d}/{day:02d}"
 
-    # 5. Amount
-    amount = result.get("amount") or (result.get("amounts") and result["amounts"][0])
-    if amount and str(amount).strip() and str(amount) != "لا يوجد":
-        fields.append({"field_key": "amount", "field_label_ar": "المبلغ المطلوب", "field_value": str(amount)})
+    if derived_birthdate and doc_type in ("national_id", "birth_certificate"):
+        dates_list.append(f"ميلاد: {derived_birthdate}")
+    elif issue_date:
+        dates_list.append(f"إصدار: {issue_date}")
+
+    if dates_list:
+        fields.append({"field_key": "dates", "field_label_ar": "تواريخ مذكورة", "field_value": " / ".join(dates_list)})
+    elif coerced.get("dates"):
+        fields.append({"field_key": "dates", "field_label_ar": "تواريخ مذكورة", "field_value": ", ".join(coerced["dates"])})
+
+    if expiry_date:
+        fields.append({"field_key": "expiry_date", "field_label_ar": "تاريخ الانتهاء", "field_value": str(expiry_date)})
+
+    # 5. Amount (only for financial documents)
+    if doc_type not in ("national_id", "driving_license", "passport", "birth_certificate", "marriage_certificate", "death_certificate"):
+        if amount and str(amount).strip() and str(amount) != "لا يوجد":
+            fields.append({"field_key": "amount", "field_label_ar": "المبلغ المطلوب", "field_value": str(amount)})
 
     # 6. Actions
-    actions = result.get("actions")
-    if not actions and doc_type == "national_id":
-        actions = "تجديد البطاقة قبل موعد الانتهاء واستخدامها لإثبات الشخصية"
-    elif not actions and doc_type == "utility_bill":
-        actions = "سداد الفاتورة عبر منافذ الدفع الإلكتروني"
     if actions:
         fields.append({"field_key": "actions", "field_label_ar": "الإجراءات المطلوبة", "field_value": str(actions)})
 
     # 7. Additional detailed fields (Name, Address, Governorate, Job)
+    from app.services.ocr_service import normalize_text
     if entities.get("name"):
-        fields.append({"field_key": "name", "field_label_ar": "الاسم الكامل", "field_value": entities["name"]})
-    if entities.get("national_number") and str(entities["national_number"]) != str(doc_number):
+        fields.append({"field_key": "name", "field_label_ar": "الاسم الكامل", "field_value": normalize_text(entities["name"])})
+    if entities.get("national_number"):
         fields.append({"field_key": "national_number", "field_label_ar": "الرقم القومي", "field_value": str(entities["national_number"])})
     if entities.get("address"):
-        fields.append({"field_key": "address", "field_label_ar": "العنوان", "field_value": entities["address"]})
+        norm_address = normalize_text(entities["address"])
+        fields.append({"field_key": "address", "field_label_ar": "العنوان", "field_value": norm_address})
     if entities.get("governorate"):
-        fields.append({"field_key": "governorate", "field_label_ar": "المحافظة", "field_value": entities["governorate"]})
+        fields.append({"field_key": "governorate", "field_label_ar": "المحافظة", "field_value": normalize_text(entities["governorate"])})
     if entities.get("job"):
-        fields.append({"field_key": "job", "field_label_ar": "المهنة", "field_value": entities["job"]})
+        fields.append({"field_key": "job", "field_label_ar": "المهنة", "field_value": str(entities["job"])})
 
     resolved_session_id = str(session_id) if (session_id and not hasattr(session_id, "default")) else None
     document_id = store_document(
@@ -243,28 +258,34 @@ async def analyze_document(
     api_fields: list[dict[str, str]] = []
     if doc_type_ar:
         api_fields.append({"doc_type": doc_type_ar})
+    if entities.get("name"):
+        api_fields.append({"name": str(entities["name"])})
+    if entities.get("address"):
+        api_fields.append({"address": str(entities["address"])})
+    if entities.get("governorate"):
+        api_fields.append({"governorate": str(entities["governorate"])})
+    if entities.get("national_number") or doc_number:
+        nid_val = entities.get("national_number") or doc_number
+        if len(str(nid_val)) == 14 and str(nid_val).isdigit():
+            api_fields.append({"national_number": str(nid_val)})
     if issuer:
         api_fields.append({"issuer": str(issuer)})
-    if doc_number:
+    if doc_type == "national_id":
+        if doc_number and len(str(doc_number)) == 14 and str(doc_number).isdigit():
+            api_fields.append({"doc_number": str(doc_number)})
+    elif doc_number:
         api_fields.append({"doc_number": str(doc_number)})
     if dates_list:
         api_fields.append({"dates": " / ".join(dates_list)})
-    elif result.get("dates"):
-        api_fields.append({"dates": ", ".join(result["dates"])})
-    if amount and str(amount).strip() and str(amount) != "لا يوجد":
-        api_fields.append({"amount": str(amount)})
+    elif coerced.get("dates"):
+        api_fields.append({"dates": ", ".join(coerced["dates"])})
+    if expiry_date:
+        api_fields.append({"expiry_date": str(expiry_date)})
+    if doc_type not in ("national_id", "driving_license", "passport", "birth_certificate", "marriage_certificate", "death_certificate"):
+        if amount and str(amount).strip() and str(amount) != "لا يوجد":
+            api_fields.append({"amount": str(amount)})
     if actions:
         api_fields.append({"actions": str(actions)})
-
-    # Detail fields in Arabic for leftover rows
-    if entities.get("name"):
-        api_fields.append({"الاسم": entities["name"]})
-    if entities.get("address"):
-        api_fields.append({"العنوان": entities["address"]})
-    if entities.get("governorate"):
-        api_fields.append({"المحافظة": entities["governorate"]})
-    if entities.get("job"):
-        api_fields.append({"المهنة": entities["job"]})
 
     next_steps = result.get("next_steps") or suggested_next_steps(doc_type)
 

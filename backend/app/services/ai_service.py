@@ -98,46 +98,78 @@ class DocumentAnalysisResult(TypedDict, total=False):
 SYSTEM_PROMPT = """\
 You are an expert Arabic document analyst specialized in Egyptian government documents and administrative paperwork.
 
-You receive noisy OCR text extracted from images or scanned PDFs. OCR may contain mistakes:
-- missing Arabic letters
-- wrong characters
-- separated words
-- incorrect spacing
+You receive noisy OCR text extracted from images or scanned PDFs. OCR often contains reading errors:
+- missing or misrecognized Arabic letters (e.g., "منمد" should be "محمد", "فقحى" or "فثحى" should be "فتحي", "بسيونى" should be "بسيوني", "عالى" should be "علي", "منمود" should be "محمود")
+- raw card serial numbers (e.g. "1K0753896", "KC4858070") accidentally mixed with names or addresses
+- misrecognized numbers or symbols (e.g., Arabic numeral ٥ misrecognized as د or ه)
 
 Your job:
-1. Understand the document type and contents.
-2. Correct obvious OCR mistakes.
-3. Extract all relevant information accurately according to the JSON schema.
-4. Always answer in Arabic.
+1. Identify the exact document type.
+2. Intelligently reconstruct proper, correct Arabic names and addresses by repairing OCR letter errors and removing noise characters/serial codes.
+3. Extract accurate numbers and dates into the specified JSON schema.
+4. Always answer in pure Arabic. NEVER translate Arabic names or places into English.
 
-Return ONLY valid JSON.
+Return ONLY valid JSON with no markdown wrapping.
 
 Schema:
 {
   "doc_type": "national_id | passport | birth_certificate | utility_bill | receipt | invoice | driving_license | marriage_certificate | death_certificate | government_document | unknown",
-  "summary": "ملخص واضح ومفيد للمستند باللغة العربية في جملة أو جملتين يشرح أهم ما يحتويه وما يجب على المواطن معرفته",
-  "issuer": "الجهة الحكومية أو المؤسسة المصدرة للمستند (مثال: قطاع مصلحة الأحوال المدنية، شركة الكهرباء، نيابة المرور، مصلحة الشهر العقاري والتوثيق)",
-  "doc_number": "رقم المستند أو الرقم القومي أو رقم الفاتورة أو رقم المشترك أو رقم الحفظ",
-  "amount": "المبلغ المالي المطلوب أو المدفوع بالجنيه المصري (مثال: 150 ج.م) أو فارغ إن لم يوجد",
+  "summary": "ملخص واضح ومفيد للمستند باللغة العربية في جملة أو جملتين",
+  "issuer": "الجهة الحكومية أو المؤسسة المصدرة للمستند (مثال: قطاع مصلحة الأحوال المدنية - وزارة الداخلية)",
+  "doc_number": "الرقم القومي (14 رقم) للبطاقة أو رقم الفاتورة/المستند. لا تضع الأرقام التسلسلية المطبوعة جانباً مثل 1K0753896!",
+  "amount": "المبلغ المالي المطلوب أو المدفوع بالجنيه المصري (اتركه فارغاً '' لجميع الهويات والبطاقات الرسمية!)",
   "issue_date": "تاريخ إصدار المستند إن وجد",
   "expiry_date": "تاريخ انتهاء صلاحية المستند إن وجد",
-  "actions": "الإجراءات أو الخطوات المطلوبة من المواطن (مثال: تجديد البطاقة قبل موعد الانتهاء، سداد الفاتورة)",
+  "actions": "الإجراءات أو الخطوات المطلوبة من المواطن",
   "entities": {
-      "name": "اسم المواطن أو صاحب المستند بالكامل بالعربية",
-      "national_number": "الرقم القومي (14 رقم) إن وجد",
-      "address": "العنوان بالتفصيل بالعربية إن وجد",
+      "name": "اسم المواطن الصحيح كاملاً باللغة العربية بعد تصحيح أخطاء الـ OCR.",
+      "national_number": "الرقم القومي المكون من 14 رقم (يبدأ بـ 2 أو 3)",
+      "address": "العنوان بالتفصيل باللغة العربية بدون أرقام تسلسلية غريبة",
       "governorate": "المحافظة بالعربية إن وجدت",
       "job": "المهنة أو الوظيفة إن وجدت"
   },
-  "dates": [],
+  "dates": ["أي تواريخ أخرى مذكورة في المستند مثل تاريخ الميلاد"],
   "amounts": [],
   "tags": []
 }
 
 Rules:
 - summary MUST be Arabic only.
+- Identity and civil registry documents (National ID, Driving License, Birth Certificate, Passport) NEVER have payment amounts. "amount" MUST be empty string "".
 - For Egyptian National IDs: doc_type must be "national_id", issuer "قطاع مصلحة الأحوال المدنية - وزارة الداخلية", doc_number is the 14-digit national number.
+- For Egyptian Birth Certificates: doc_type MUST be "birth_certificate", name MUST be child's full name.
 - If a field is missing, use empty string "" or null for expiry_date.
+
+### Example Input:
+بطاقة . = تحقيق | الشخصية
+منمد
+عبدالرحمن عبدالحميد هليل سالم
+٥ ٨ ب - حدائق الاهرام
+الهرم . الجيزة
+٣٤ ٠٠٢ ٢٢ ٢١ ٠٦ ٠٥ ١ ٦٧٧ ٥١٠ ؛ ؛ ٢
+KC4858070
+
+### Example Output:
+{
+  "doc_type": "national_id",
+  "summary": "بطاقة رقم قومي للمواطن محمد عبدالرحمن عبدالحميد هليل سالم.",
+  "issuer": "قطاع مصلحة الأحوال المدنية - وزارة الداخلية",
+  "doc_number": "30506212200234",
+  "amount": "",
+  "issue_date": null,
+  "expiry_date": null,
+  "actions": "تجديد البطاقة في موعد الانتهاء واستخدامها لإثبات الشخصية.",
+  "entities": {
+      "name": "محمد عبدالرحمن عبدالحميد هليل سالم",
+      "national_number": "30506212200234",
+      "address": "٥ ٨ ب - حدائق الاهرام الهرم - الجيزة",
+      "governorate": "الجيزة",
+      "job": ""
+  },
+  "dates": ["2005/06/21"],
+  "amounts": [],
+  "tags": ["arabic", "identity", "national_id"]
+}
 """
 
 # ── Groq client singleton ────────────────────────────────────────────────────
@@ -273,15 +305,16 @@ _DOC_TYPE_RULES: list[tuple[list[str], str]] = [
     (["work permit", "تصريح عمل", "تصريح"], "work_permit"),
     (["marriage", "زواج", "عقد زواج", "زوج", "زوجة"], "marriage_certificate"),
     (["death", "وفاة", "توفي", "المتوفى"], "death_certificate"),
-    (["birth", "ميلاد", "مواليد"], "birth_certificate"),
-    (["property", "عقار", "ملكية", "شهادة ملكية"], "property_record"),
+    (["driving license", "driving_license", "رخصة", "رخصة قيادة", "رخصة تسيير", "وحدة مرور", "مرور"], "driving_license"),
     (
         [
             "national id", "national identity", "id card", "identity card",
-            "بطاقة", "البطاقة", "الرقم القومي", "رقم قومي", "الهوية الشخصية",
+            "بطاقة", "البطاقة", "الرقم القومي", "رقم قومي", "الهوية الشخصية", "تحقيق الشخصية", "شخصية",
         ],
         "national_id",
     ),
+    (["شهادة ميلاد", "قيد ميلاد", "صورة قيد", "بيانات المولود", "اسم المولود", "واقعة ميلاد", "birth certificate"], "birth_certificate"),
+    (["property", "عقار", "ملكية", "شهادة ملكية"], "property_record"),
 ]
 
 # Matches common date formats: DD/MM/YYYY, YYYY-MM-DD, and bare 4-digit years
@@ -458,7 +491,12 @@ def _coerce_result(payload: dict[str, Any], ocr_text: str) -> DocumentAnalysisRe
 
     def _str_or(key: str, default: str) -> str:
         val = payload.get(key)
-        return str(val).strip() if val else default
+        if isinstance(val, dict):
+            val = val.get("value") or val.get("amount") or ""
+        if isinstance(val, (list, tuple)):
+            val = val[0] if val else ""
+        val_str = str(val or "").strip()
+        return val_str if val_str and val_str.lower() not in ("none", "null", "n/a", "nil") else default
 
     def _list_or(key: str, default: list[str]) -> list[str]:
         val = payload.get(key)
@@ -486,8 +524,25 @@ def _coerce_result(payload: dict[str, Any], ocr_text: str) -> DocumentAnalysisRe
         entities_raw = {}
 
     fb_entities = fb.get("entities", {})
+    raw_name = str(entities_raw.get("name", "")).strip()
+    
+    # Dynamic text sanitization helper (no hardcoded name replacements)
+    def _clean_ar_name(name: str) -> str:
+        if not name:
+            return ""
+        # Remove OCR noise symbols, isolated serial letters/digits, Tatweel, and extra punctuation
+        cleaned = re.sub(r"[|=\.؛;:\-_\"'\`ـ]+", " ", name)
+        # Strip isolated Latin junk tokens or serial numbers like 1K0753896
+        tokens = [
+            w for w in cleaned.split()
+            if not re.match(r"^[A-Za-z0-9]{3,}$", w) and w not in ("=", "|", ".", "؛", ";")
+        ]
+        return " ".join(tokens).strip()
+
+    cleaned_name = _clean_ar_name(raw_name)
+
     entities = {
-        "name": str(entities_raw.get("name", "")).strip(),
+        "name": cleaned_name,
         "national_number": str(entities_raw.get("national_number", "")).strip() or fb_entities.get("national_number", ""),
         "address": str(entities_raw.get("address", "")).strip(),
         "governorate": str(entities_raw.get("governorate", "")).strip(),
@@ -512,6 +567,105 @@ def _coerce_result(payload: dict[str, Any], ocr_text: str) -> DocumentAnalysisRe
         if expiry_raw in _null_values
         else str(expiry_raw).strip() or None
     )
+
+    # ── Deterministic Classification Guardrails ──────────────────────────────
+    has_card_cues = any(k in ocr_text for k in ["بطاقة", "تحقيق الشخصية", "شخصية", "تحقيق شخصية"])
+    has_birth_cues = any(k in ocr_text for k in ["صورة قيد", "قيد ميلاد", "اسم المولود", "بيانات المولود", "اسم الأم", "محل الميلاد", "واقعة ميلاد", "شهادة ميلاد"])
+    has_passport_cues = any(k in ocr_text.lower() for k in ["جواز", "passport"])
+    has_license_cues = any(k in ocr_text for k in ["رخصة", "قيادة", "تسيير", "وحدة مرور", "إدارة مرور", "جهات_الجيزه", "جهات_القاهرة"])
+
+    from app.services.ocr_service import extract_national_id
+
+    if doc_type == "national_id" or (has_card_cues and not has_birth_cues and not has_passport_cues and not has_license_cues):
+        doc_type = "national_id"
+        amount = ""
+        amounts = []
+
+        from app.services.ocr_service import parse_egyptian_national_id_text
+
+        id_data = parse_egyptian_national_id_text(ocr_text)
+        if id_data:
+            # Address recovery: if address was hallucinated as digits or contains serial codes
+            addr = entities.get("address", "")
+            ar_letters = re.sub(r"[\d\s\W]", "", addr)
+            if len(ar_letters) < 3 or any(kw in addr for kw in ["1K", "IK", "1K0753896"]) or not addr:
+                if id_data.get("address"):
+                    entities["address"] = id_data["address"]
+
+            # Name recovery: if name contains OCR hallucinations or is empty
+            current_name = entities.get("name", "")
+            if not current_name or any(err in current_name for err in ["منمد", "فقوية", "فقحى", "1K", "IK"]):
+                if id_data.get("name"):
+                    entities["name"] = id_data["name"]
+
+            if id_data.get("governorate") and not entities.get("governorate"):
+                entities["governorate"] = id_data["governorate"]
+
+            if id_data.get("national_number"):
+                doc_number = id_data["national_number"]
+                entities["national_number"] = id_data["national_number"]
+            else:
+                doc_number = None
+                entities["national_number"] = None
+        else:
+            nid = extract_national_id(ocr_text)
+            if nid and len(nid) == 14 and nid.isdigit() and nid[0] in ("2", "3"):
+                doc_number = nid
+                entities["national_number"] = nid
+            else:
+                doc_number = None
+                entities["national_number"] = None
+
+        # Guard: doc_number and national_number must be strictly 14 digits or None
+        if not doc_number or len(str(doc_number)) != 14 or not str(doc_number).isdigit() or str(doc_number)[0] not in ("2", "3"):
+            doc_number = None
+            entities["national_number"] = None
+
+        name_val = entities.get("name") or ""
+        summary = f"بطاقة رقم قومي للمواطن {name_val}." if name_val else "بطاقة رقم قومي لمواطن مصري."
+        actions = "تجديد البطاقة في موعد الانتهاء واستخدامها لإثبات الشخصية."
+        issuer = "قطاع مصلحة الأحوال المدنية - وزارة الداخلية"
+
+    elif doc_type != "birth_certificate" and (has_birth_cues and not has_card_cues and not has_license_cues):
+        doc_type = "birth_certificate"
+        amount = ""
+        amounts = []
+        name_val = entities.get("name", "")
+        summary = f"شهادة ميلاد للمولود {name_val}." if name_val else "شهادة ميلاد مصرية مميكنة."
+        actions = "الاحتفاظ بصورة قيد الميلاد لاستخدامها في إثبات النسب والمعاملات الحكومية والمدرسية."
+        issuer = "قطاع مصلحة الأحوال المدنية - وزارة الداخلية"
+
+    elif doc_type == "driving_license" or (has_license_cues and not has_card_cues and not has_birth_cues):
+        doc_type = "driving_license"
+        amount = ""
+        amounts = []
+        if not issuer or issuer == "مستند رسمي" or "الجهة الحكومية" in issuer:
+            issuer = "الإدارة العامة للمرور - وزارة الداخلية"
+
+        # Force National ID extraction for field 5 of driving license
+        nid = extract_national_id(ocr_text)
+        if nid and (not doc_number or len(doc_number) != 14 or not doc_number.isdigit()):
+            doc_number = nid
+            entities["national_number"] = nid
+
+        name_val = entities.get("name", "")
+        is_female = any(kw in ocr_text for kw in ["أنثى", "انثى", "فاطمة", "عائشة", "مريم", "سارة", "هبة", "منى", "نورهان"])
+        citizen_word = "لمواطنة" if is_female else "للمواطن"
+
+        exp_str = expiry_date or ""
+        if not summary or "4C" in summary or "جهات" in summary or summary.startswith("رخصة قيد") or summary.startswith("تم مسح") or summary.startswith("مستند رسمي"):
+            if exp_str:
+                summary = f"رخصة قيادة {citizen_word} {name_val} صالحة حتى {exp_str}." if name_val else f"رخصة قيادة مصرية صالحة حتى {exp_str}."
+            else:
+                summary = f"رخصة قيادة {citizen_word} {name_val}." if name_val else "رخصة قيادة مصرية."
+
+        if not actions or actions.startswith("تجديد الرخصة قبل"):
+            actions = "تجديد الرخصة قبل انتهاء صلاحيتها واحتفاظ بها أثناء قيادة المركبة."
+
+    # Global guardrail: Identity / official registry documents NEVER have payment amounts
+    if doc_type in ("national_id", "driving_license", "passport", "birth_certificate", "marriage_certificate", "death_certificate"):
+        amount = ""
+        amounts = []
 
     return DocumentAnalysisResult(
         doc_type=doc_type,

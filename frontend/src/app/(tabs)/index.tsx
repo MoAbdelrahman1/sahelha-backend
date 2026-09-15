@@ -38,13 +38,36 @@ export default function HomeScreen() {
             paddingVertical: 18,
           }}
         >
-          <Ionicons name="add" size={24} color={c.primaryFg} />
+          <Ionicons name="camera" size={24} color={c.primaryFg} />
           <Text style={{ fontFamily: "Cairo_800ExtraBold", fontSize: 18, color: c.primaryFg }}>
             مسح مستند جديد
           </Text>
         </Pressable>
 
-        <Text style={{ fontFamily: "Cairo_800ExtraBold", fontSize: 16, color: c.secondary, textAlign: "right" }}>
+        <Pressable
+          onPress={() => router.push("/services")}
+          accessibilityRole="button"
+          accessibilityLabel="الخدمات الحكومية الرقمية"
+          style={{
+            minHeight: 64,
+            flexDirection: "row-reverse",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 10,
+            borderRadius: 18,
+            backgroundColor: c.surface,
+            paddingVertical: 18,
+            borderColor: c.border,
+            borderWidth: 1,
+          }}
+        >
+          <Ionicons name="library-outline" size={24} color={c.ink} />
+          <Text style={{ fontFamily: "Cairo_800ExtraBold", fontSize: 18, color: c.ink }}>
+            الخدمات الحكومية الرقمية (١٨ خدمة)
+          </Text>
+        </Pressable>
+
+        <Text style={{ fontFamily: "Cairo_800ExtraBold", fontSize: 16, color: c.secondary, textAlign: "right", marginTop: 12 }}>
           مستنداتك
         </Text>
 
