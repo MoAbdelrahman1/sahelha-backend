@@ -170,9 +170,10 @@ def process_document_pipeline(image_path: str) -> dict[str, Any]:
         response["ocr_error"] = str(exc)
         _safe_print(f"\n[OCR ERROR] {exc}")
 
-    # ── Stage 2 : LLM analysis ───────────────────────────────────────────────
+    # ── Stage 2 : LLM / Vision analysis ───────────────────────────────────────
     try:
-        analysis: dict[str, Any] = analyze_document_text(ocr_text)
+        from app.services.ai_service import analyze_document_image
+        analysis: dict[str, Any] = analyze_document_image(image_path, ocr_text)
         if analysis.get("doc_type") == "national_id":
             try:
                 import cv2

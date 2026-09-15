@@ -803,7 +803,55 @@ def analyze_document_text(ocr_text: str) -> dict[str, Any]:
         traceback.print_exc()
         print("========================================\n")
 
-    return dict(_fallback_analysis(normalized))
+def analyze_document_image(image_path: str, ocr_text: str = "") -> dict[str, Any]:
+    """Analyze document image directly via Multimodal Vision (Azure OpenAI Vision), falling back to text OCR."""
+    if _AZURE_OPENAI_KEY and os.path.exists(image_path):
+        try:
+            import base64
+            with open(image_path, "rb") as f:
+                img_bytes = f.read()
+            ext = os.path.splitext(image_path)[-1].lower()
+            mime = "image/png" if ext == ".png" else "image/jpeg"
+            base64_image = base64.b64encode(img_bytes).decode("utf-8")
+            data_url = f"data:{mime};base64,{base64_image}"
+
+            url = f"{_AZURE_OPENAI_ENDPOINT.rstrip('/')}/chat/completions"
+            headers = {
+                "api-key": _AZURE_OPENAI_KEY,
+                "Content-Type": "application/json",
+            }
+            user_text = "اقرأ واستخرج كافة بيانات هذا المستند الحكومي المصري بالتفصيل بـ JSON."
+            if ocr_text:
+                user_text += f"\nنص الـ OCR المساعد:\n{ocr_text}"
+
+            payload: dict[str, Any] = {
+                "model": _AZURE_OPENAI_DEPLOYMENT,
+                "messages": [
+                    {"role": "system", "content": SYSTEM_PROMPT},
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": user_text},
+                            {"type": "image_url", "image_url": {"url": data_url}}
+                        ]
+                    }
+                ],
+                "max_completion_tokens": 1024,
+                "response_format": {"type": "json_object"}
+            }
+            res = requests.post(url, headers=headers, json=payload, timeout=30)
+            res.raise_for_status()
+            data = res.json()
+            raw = data.get("choices", [{}])[0].get("message", {}).get("content", "{}")
+            parsed = _parse_json_payload(raw)
+            result = dict(_coerce_result(parsed, ocr_text))
+            if result.get("doc_type") and result["doc_type"] != "unknown":
+                print(f"[AI SERVICE Vision] Successfully analyzed photo directly via Azure OpenAI Vision!")
+                return result
+        except Exception as exc:
+            print(f"[AI SERVICE Vision] Direct vision issue ({exc}); falling back to text analysis...")
+
+    return analyze_document_text(ocr_text)
 
 
-__all__ = ["analyze_document_text", "chat_completion", "DocumentAnalysisResult", "SYSTEM_PROMPT"]
+__all__ = ["analyze_document_text", "analyze_document_image", "chat_completion", "DocumentAnalysisResult", "SYSTEM_PROMPT"]
