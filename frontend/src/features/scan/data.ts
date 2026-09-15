@@ -7,10 +7,14 @@ export type ScanExtractItem = {
 // screen maps over this with one row component rather than hand-written rows.
 export const SCAN_EXTRACT_ITEMS: ScanExtractItem[] = [
   { id: "doc-type", label: "نوع المستند" },
+  { id: "name", label: "الاسم" },
+  { id: "address-gov", label: "العنوان / المحافظة" },
+  { id: "national-number", label: "الرقم القومي" },
   { id: "issuer", label: "الجهة الحكومية" },
-  { id: "amount", label: "المبلغ المطلوب" },
-  { id: "dates", label: "تاريخ الإصدار وتاريخ الانتهاء" },
   { id: "doc-number", label: "رقم المستند" },
+  { id: "dates", label: "تواريخ مذكورة" },
+  { id: "expiry", label: "تاريخ الانتهاء" },
+  { id: "amount", label: "المبلغ المطلوب" },
   { id: "actions", label: "الإجراءات المطلوبة" },
   { id: "next-step", label: "الخطوة التالية" },
 ];

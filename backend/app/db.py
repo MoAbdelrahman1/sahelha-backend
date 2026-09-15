@@ -125,6 +125,18 @@ CREATE TABLE IF NOT EXISTS reminders (
     FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
     FOREIGN KEY (document_id) REFERENCES documents (id) ON DELETE CASCADE
 );
+
+CREATE TABLE IF NOT EXISTS service_applications (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    service_id TEXT NOT NULL,
+    service_title TEXT NOT NULL,
+    reference_code TEXT NOT NULL UNIQUE,
+    status TEXT NOT NULL DEFAULT 'قيد المعالجة',
+    answers_json TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+);
 """
 
 # Columns added after the original `documents` table shipped. SQLite's

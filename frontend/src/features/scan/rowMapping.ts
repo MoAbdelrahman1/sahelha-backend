@@ -16,6 +16,20 @@ export const SCAN_ROW_KEY_MAP: Record<string, string> = {
   doc_type: "doc-type",
   type: "doc-type",
 
+  // -> "name" (الاسم)
+  name: "name",
+  الاسم: "name",
+
+  // -> "address-gov" (العنوان / المحافظة)
+  address: "address-gov",
+  governorate: "address-gov",
+  العنوان: "address-gov",
+  المحافظة: "address-gov",
+
+  // -> "national-number" (الرقم القومي)
+  national_number: "national-number",
+  "الرقم القومي": "national-number",
+
   // -> "issuer" (الجهة الحكومية)
   issuer: "issuer",
   government_office: "issuer",
@@ -26,13 +40,14 @@ export const SCAN_ROW_KEY_MAP: Record<string, string> = {
   amount_due: "amount",
   fee: "amount",
 
-  // -> "dates" (تاريخ الإصدار وتاريخ الانتهاء) — issue + expiry both land on
-  // this one row (see resultRows.ts, which joins multiple matches).
+  // -> "dates" (تواريخ مذكورة)
   issue_date: "dates",
   issued_at: "dates",
-  expiry_date: "dates",
-  expires_at: "dates",
   dates: "dates",
+
+  // -> "expiry" (تاريخ الانتهاء)
+  expiry_date: "expiry",
+  expires_at: "expiry",
 
   // -> "doc-number" (رقم المستند)
   document_number: "doc-number",
@@ -44,7 +59,6 @@ export const SCAN_ROW_KEY_MAP: Record<string, string> = {
   required_actions: "actions",
   action_required: "actions",
 
-  // -> "next-step" (الخطوة التالية) — the response's dedicated `next_steps`
-  // array (see resultRows.ts) takes priority over this guessed match.
+  // -> "next-step" (الخطوة التالية)
   next_step: "next-step",
 };

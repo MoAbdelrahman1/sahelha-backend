@@ -18,7 +18,7 @@ export function CameraPreviewPlaceholder({ photoUri }: CameraPreviewPlaceholderP
         <Image
           source={{ uri: photoUri }}
           className="h-[280px] w-full"
-          resizeMode="cover"
+          resizeMode="contain"
           // TODO(Asma): confirm final Arabic copy.
           accessibilityLabel="صورة المستند التي تم التقاطها"
         />

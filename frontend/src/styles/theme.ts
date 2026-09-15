@@ -65,6 +65,7 @@ export const DOC_TYPE_ACCENTS: Record<string, { accent: string; accentSoft: stri
   utility_bill: { accent: "#1B6E8C", accentSoft: "#E1F1F5" },
   receipt: { accent: "#1F7A4C", accentSoft: "#E4F3EA" },
   invoice: { accent: "#1F7A4C", accentSoft: "#E4F3EA" },
+  driving_license: { accent: "#1B6E8C", accentSoft: "#E1F1F5" },
   work_permit: { accent: "#33409B", accentSoft: "#E7EAFB" },
   marriage_certificate: { accent: "#6A3E9E", accentSoft: "#F0E7F8" },
   death_certificate: { accent: "#6A3E9E", accentSoft: "#F0E7F8" },

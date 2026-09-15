@@ -79,9 +79,16 @@ async def ask(
     store_message(resolved_session_id, "user", question)
     store_message(resolved_session_id, "assistant", answer, audio_url=answer_audio_url)
 
+    from app.services.rag_service import search_government_rag
+    matched_rag = search_government_rag(question)
+    service_id = matched_rag.get("id") if matched_rag else None
+    service_title = matched_rag.get("title") if matched_rag else None
+
     return {
         "session_id": resolved_session_id,
         "question": question,
         "answer": answer,
         "answer_audio_url": answer_audio_url,
+        "service_id": service_id,
+        "service_title": service_title,
     }

@@ -6,7 +6,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from app.api import ai_assistant, archive, auth, documents, legacy, reminders, voice
+from app.api import ai_assistant, archive, auth, documents, legacy, reminders, services, voice
 from app.db import SCHEMA_SQL, init_db
 from app.services.scheduler import start_reminder_scheduler
 
@@ -36,8 +36,9 @@ else:
 def startup_event() -> None:
     os.makedirs("uploads", exist_ok=True)
     init_db(SCHEMA_SQL)
-    start_reminder_scheduler()
-    print("[VOICE SERVICE] ✅ Voice service is ready (STT: Groq Whisper-Large-v3, TTS: Edge-TTS ar-EG-SalmaNeural)")
+    use_lahgtna = os.getenv("USE_LAHGTNA_TTS", "false").strip().lower() in {"1", "true", "yes"}
+    tts_name = "Lahgtna OmniVoice v3 (GPU Egyptian Colloquial)" if use_lahgtna else "Edge-TTS ar-EG-SalmaNeural"
+    print(f"[VOICE SERVICE] ✅ Voice service is ready (STT: Groq Whisper-Large-v3, TTS: {tts_name})")
 
 
 from pathlib import Path
@@ -46,6 +47,7 @@ _uploads_dir.mkdir(parents=True, exist_ok=True)
 
 app.mount("/uploads", StaticFiles(directory=str(_uploads_dir)), name="uploads")
 
+app.include_router(services.router, prefix="/api/services", tags=["Services"])
 app.include_router(legacy.router)
 app.include_router(auth.router, prefix="/api/auth", tags=["Auth"])
 app.include_router(documents.router, prefix="/api/documents", tags=["Documents"])
