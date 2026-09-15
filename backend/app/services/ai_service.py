@@ -292,23 +292,33 @@ def chat_completion(
 ) -> str:
     """Run one chat completion across available providers.
 
-    Provider order: Azure OpenAI (if key provided) -> Local Ollama (unless AI_PREFER_CLOUD) -> Groq.
+    Provider order:
+    - If AI_PREFER_CLOUD=false (default): Local Ollama (qwen2.5:7b-egypt) -> Azure OpenAI -> Groq
+    - If AI_PREFER_CLOUD=true: Azure OpenAI -> Groq -> Local Ollama
     """
-    if _AZURE_OPENAI_KEY:
-        try:
-            return _azure_openai_chat_completion(
-                messages, temperature=temperature, max_tokens=max_tokens, json_mode=json_mode
-            )
-        except Exception as exc:
-            print(f"[AI SERVICE] Azure OpenAI call failed ({exc}); attempting fallback...")
-
     if not _AI_PREFER_CLOUD:
         try:
             return _ollama_chat_completion(
                 messages, temperature=temperature, max_tokens=max_tokens, json_mode=json_mode
             )
         except Exception as exc:
-            print(f"[AI SERVICE] Local Ollama unavailable ({exc}); attempting fallback...")
+            print(f"[AI SERVICE] Local Ollama ({_OLLAMA_MODEL}) unavailable ({exc}); attempting cloud fallback...")
+
+    if _AZURE_OPENAI_KEY:
+        try:
+            return _azure_openai_chat_completion(
+                messages, temperature=temperature, max_tokens=max_tokens, json_mode=json_mode
+            )
+        except Exception as exc:
+            print(f"[AI SERVICE] Azure OpenAI call failed ({exc}); attempting Groq fallback...")
+
+    if _AI_PREFER_CLOUD:
+        try:
+            return _ollama_chat_completion(
+                messages, temperature=temperature, max_tokens=max_tokens, json_mode=json_mode
+            )
+        except Exception as exc:
+            print(f"[AI SERVICE] Local Ollama fallback unavailable ({exc})")
 
     try:
         client = _get_client()
@@ -770,7 +780,7 @@ def analyze_document_text(ocr_text: str) -> dict[str, Any]:
     normalized = ocr_text.strip()
     if not normalized:
         return dict(_fallback_analysis(ocr_text))
-    provider_name = f"cloud (Azure OpenAI: {_AZURE_OPENAI_DEPLOYMENT})" if _AZURE_OPENAI_KEY else ("cloud (Groq)" if _AI_PREFER_CLOUD else f"local (Ollama: {_OLLAMA_MODEL})")
+    provider_name = (f"cloud (Azure OpenAI: {_AZURE_OPENAI_DEPLOYMENT})" if _AZURE_OPENAI_KEY else "cloud (Groq)") if _AI_PREFER_CLOUD else f"local (Ollama: {_OLLAMA_MODEL})"
     print(f"[AI SERVICE] Provider preference: {provider_name}")
 
     try:
