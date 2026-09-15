@@ -1,11 +1,11 @@
-from __future__ import annotations
-
+import json
 import uuid
 from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from app.core.security import get_current_user
+from app.core.security import get_current_user, now_iso
+from app.db import db_connection
 from app.services.rag_service import load_dataset
 
 router = APIRouter()
@@ -318,6 +318,43 @@ def get_service_form_schema(service_id: str) -> ServiceFormSchemaResponse:
     )
 
 
+@router.get("/user/applications", response_model=List[Dict[str, Any]])
+def list_user_applications(
+    current_user: dict[str, Any] = Depends(get_current_user),
+) -> List[Dict[str, Any]]:
+    user_id = current_user.get("id", 1)
+    with db_connection() as connection:
+        rows = connection.execute(
+            """
+            SELECT * FROM service_applications
+            WHERE user_id = ?
+            ORDER BY id DESC
+            """,
+            (user_id,),
+        ).fetchall()
+
+    results = []
+    for r in rows:
+        answers = {}
+        if r["answers_json"]:
+            try:
+                answers = json.loads(r["answers_json"])
+            except Exception:
+                pass
+        results.append(
+            {
+                "id": r["id"],
+                "service_id": r["service_id"],
+                "service_title": r["service_title"],
+                "reference_code": r["reference_code"],
+                "status": r["status"],
+                "answers": answers,
+                "created_at": r["created_at"],
+            }
+        )
+    return results
+
+
 @router.post("/{service_id}/submit", response_model=FormSubmissionResponse)
 def submit_service_form(
     service_id: str,
@@ -332,14 +369,26 @@ def submit_service_form(
             break
 
     title = matched["title"] if matched else service_id
-    ref_code = f"EGY-{uuid.uuid4().hex[:8].upper()}"
+    ref_code = f"REQ-2026-{uuid.uuid4().hex[:6].upper()}"
+    user_id = current_user.get("id", 1)
+    created_at = now_iso()
 
-    print(f"[SERVICE FORM] User {current_user.get('id')} submitted form for {service_id} ({title}). Ref: {ref_code}.")
+    with db_connection() as connection:
+        connection.execute(
+            """
+            INSERT INTO service_applications (user_id, service_id, service_title, reference_code, status, answers_json, created_at)
+            VALUES (?, ?, ?, ?, 'قيد المعالجة', ?, ?)
+            """,
+            (user_id, service_id, title, ref_code, json.dumps(body.answers), created_at),
+        )
+        connection.commit()
+
+    print(f"[SERVICE FORM] User {user_id} submitted form for {service_id} ({title}). Ref: {ref_code}.")
 
     return FormSubmissionResponse(
         reference_number=ref_code,
         service_id=service_id,
         service_title=title,
-        status="مقبول وجارٍ المعالجة",
+        status="قيد المعالجة",
         message=f"تم استلام طلبك بنجاح برقم مرجعي {ref_code}. سيتم إشعارك فور إصدار المستند وموعد توصيله.",
     )

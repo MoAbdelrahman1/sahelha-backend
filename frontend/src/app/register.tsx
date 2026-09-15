@@ -14,6 +14,7 @@ import {
   passwordHasInvalidChar,
   phoneHasInvalidChar,
 } from "@/features/auth/validation";
+import { useAuth } from "@/store/authStore";
 import { register } from "@/features/auth/api";
 import { ApiError } from "@/lib/api/errors";
 
@@ -29,6 +30,7 @@ const PASSWORD_ERROR_HINT = "كلمة المرور يجب ألا تقل عن 8 �
 
 export default function RegisterScreen() {
   const router = useRouter();
+  const { loginUser } = useAuth();
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
@@ -82,7 +84,8 @@ export default function RegisterScreen() {
 
     setLoading(true);
     try {
-      await register({ email, password, full_name: fullName, phone });
+      const res = await register({ email, password, full_name: fullName, phone });
+      loginUser(res.user);
       resetForm(); // clear the password out of state before navigating away
       // Retarget point: where a successful registration sends the user.
       router.replace("/(tabs)");

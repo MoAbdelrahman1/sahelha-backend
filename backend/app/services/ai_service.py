@@ -66,8 +66,8 @@ _GROQ_MODEL: str = os.getenv("GROQ_MODEL", "allam-2-7b")
 # "aya-expanse:8b" (Cohere's Aya, tuned specifically for non-English
 # languages including Arabic), "llama3.1:8b".
 _OLLAMA_BASE_URL: str = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434").rstrip("/")
-_OLLAMA_MODEL: str = os.getenv("OLLAMA_MODEL", "qwen2.5:3b")
-_OLLAMA_TIMEOUT_SECONDS: float = float(os.getenv("OLLAMA_TIMEOUT_SECONDS", "60"))
+_OLLAMA_MODEL: str = os.getenv("OLLAMA_MODEL", "qwen2.5:7b-egypt")
+_OLLAMA_TIMEOUT_SECONDS: float = float(os.getenv("OLLAMA_TIMEOUT_SECONDS", "180"))
 _AI_PREFER_CLOUD: bool = os.getenv("AI_PREFER_CLOUD", "false").strip().lower() in {"1", "true", "yes"}
 
 
@@ -99,9 +99,17 @@ SYSTEM_PROMPT = """\
 You are an expert Arabic document analyst specialized in Egyptian government documents and administrative paperwork.
 
 You receive noisy OCR text extracted from images or scanned PDFs. OCR often contains reading errors:
-- missing or misrecognized Arabic letters (e.g., "منمد" should be "محمد", "فقحى" or "فثحى" should be "فتحي", "بسيونى" should be "بسيوني", "عالى" should be "علي", "منمود" should be "محمود")
+- missing or misrecognized Arabic letters (e.g., "منمد" should be "محمد", "فقحى" or "فثحى" should be "فتحي", "بسيونى" or "بميونى" should be "بسيوني", "عالى" should be "علي", "منمود" should be "محمود")
+- Egyptian governorates and cities often suffer minor OCR letter misreads (e.g., "البعبرة" is "البحيرة", "اسكندرية" is "الإسكندرية", "الهزم" is "الهرم")
 - raw card serial numbers (e.g. "1K0753896", "KC4858070") accidentally mixed with names or addresses
 - misrecognized numbers or symbols (e.g., Arabic numeral ٥ misrecognized as د or ه)
+
+Egyptian National ID Card Layout:
+- Top text lines contain the citizen's full Arabic name (e.g. "محمد بسيوني محمد فتحي بسيوني").
+- Middle text lines contain the street address (e.g. "المعهد الديني" or "١٦ ش الليثى").
+- Bottom text line contains city/markaz and governorate (e.g. "دمنهور - البحيرة").
+- Do NOT mix street or place names (like "المعهد الديني" or "دمنهور") into the citizen's personal name.
+- Do NOT include card serial codes (like "1K0753896") in the name, address, or national_number.
 
 Your job:
 1. Identify the exact document type.
@@ -205,7 +213,8 @@ def _ollama_chat_completion(
     """Call a locally-running Ollama server's native chat API.
     Attempts configured _OLLAMA_MODEL first, and falls back to other pulled models if 404.
     """
-    models_to_try = [_OLLAMA_MODEL, "hf.co/ibm-granite/granite-4.2-3b-GGUF:Q3_K_M", "qwen2.5:3b", "llama3.2:latest"]
+    preferred_model = os.getenv("OLLAMA_MODEL") or _OLLAMA_MODEL
+    models_to_try = [preferred_model, "qwen2.5:7b-egypt", "qwen2.5:7b", "qwen2.5:3b-egypt-ocr", "qwen2.5:3b"]
     seen = set()
     unique_models = [m for m in models_to_try if m and not (m in seen or seen.add(m))]
 
@@ -240,6 +249,9 @@ def _ollama_chat_completion(
             if err.response is not None and err.response.status_code == 404:
                 print(f"[AI SERVICE] Model '{model_name}' not found in Ollama, attempting fallback model...")
                 continue
+            raise err
+        except (requests.Timeout, requests.ConnectionError) as err:
+            print(f"[AI SERVICE] Ollama connection/timeout for '{model_name}' ({err}). Bypassing model retry loop.")
             raise err
         except Exception as err:
             raise err
@@ -539,12 +551,26 @@ def _coerce_result(payload: dict[str, Any], ocr_text: str) -> DocumentAnalysisRe
         ]
         return " ".join(tokens).strip()
 
+    def _clean_ar_address(addr: str) -> str:
+        if not addr:
+            return ""
+        cleaned = re.sub(r"[|=\.؛;:\-_\"'\`ـ]+", " ", addr)
+        tokens = [
+            w for w in cleaned.split()
+            if not re.search(r"[A-Za-z]{2,}", w) and w not in ("=", "|", ".", "؛", ";")
+        ]
+        res = " ".join(tokens).strip()
+        res = res.replace("انمعد", "المعهد").replace("البعبرة", "البحيرة")
+        return res
+
     cleaned_name = _clean_ar_name(raw_name)
+    raw_addr = str(entities_raw.get("address", "")).strip()
+    cleaned_addr = _clean_ar_address(raw_addr)
 
     entities = {
         "name": cleaned_name,
         "national_number": str(entities_raw.get("national_number", "")).strip() or fb_entities.get("national_number", ""),
-        "address": str(entities_raw.get("address", "")).strip(),
+        "address": cleaned_addr,
         "governorate": str(entities_raw.get("governorate", "")).strip(),
         "job": str(entities_raw.get("job", "")).strip(),
     }
@@ -592,21 +618,26 @@ def _coerce_result(payload: dict[str, Any], ocr_text: str) -> DocumentAnalysisRe
                 if id_data.get("address"):
                     entities["address"] = id_data["address"]
 
-            # Name recovery: if name contains OCR hallucinations or is empty
-            current_name = entities.get("name", "")
-            if not current_name or any(err in current_name for err in ["منمد", "فقوية", "فقحى", "1K", "IK"]):
-                if id_data.get("name"):
-                    entities["name"] = id_data["name"]
+            # Name recovery: only if name is completely missing from LLM
+            if not entities.get("name") and id_data.get("name"):
+                entities["name"] = id_data["name"]
 
             if id_data.get("governorate") and not entities.get("governorate"):
                 entities["governorate"] = id_data["governorate"]
 
-            if id_data.get("national_number"):
-                doc_number = id_data["national_number"]
-                entities["national_number"] = id_data["national_number"]
-            else:
-                doc_number = None
-                entities["national_number"] = None
+            # Fix common governorate OCR typo if present in address
+            if entities.get("address") and "البعبرة" in entities["address"]:
+                entities["address"] = entities["address"].replace("البعبرة", "البحيرة")
+            if entities.get("address") and "انمعد" in entities["address"]:
+                entities["address"] = entities["address"].replace("انمعد", "المعهد")
+
+        existing_nid = str(entities.get("national_number") or payload.get("doc_number") or "").strip()
+        if existing_nid and len(existing_nid) == 14 and existing_nid.isdigit() and existing_nid[0] in ("2", "3"):
+            doc_number = existing_nid
+            entities["national_number"] = existing_nid
+        elif id_data and id_data.get("national_number"):
+            doc_number = id_data["national_number"]
+            entities["national_number"] = id_data["national_number"]
         else:
             nid = extract_national_id(ocr_text)
             if nid and len(nid) == 14 and nid.isdigit() and nid[0] in ("2", "3"):

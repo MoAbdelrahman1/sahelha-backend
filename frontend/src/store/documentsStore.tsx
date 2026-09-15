@@ -23,18 +23,22 @@ const STORAGE_KEY = "sahelha_documents_v1";
 function loadSavedDocuments(): Document[] {
   try {
     if (typeof window !== "undefined" && window.localStorage) {
+      const token = window.localStorage.getItem("sahelha_access_token");
       const saved = window.localStorage.getItem(STORAGE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
+        if (Array.isArray(parsed)) {
           return parsed;
         }
+      }
+      if (token) {
+        return [];
       }
     }
   } catch {
     // Ignore storage read errors
   }
-  return DEMO_DOCUMENTS;
+  return [];
 }
 
 function saveDocuments(docs: Document[]) {
@@ -52,7 +56,7 @@ export function DocumentsProvider({ children }: { children: React.ReactNode }) {
 
   const refreshDocuments = useCallback(async () => {
     try {
-      const { data } = await apiClient.get<Document[]>("/api/documents");
+      const { data } = await apiClient.get<Document[]>("/api/documents/");
       if (Array.isArray(data)) {
         setDocuments(data);
         saveDocuments(data);

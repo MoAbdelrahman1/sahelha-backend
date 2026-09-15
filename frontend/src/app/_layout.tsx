@@ -16,6 +16,8 @@ import {
 import { AppearanceProvider } from "@/store/appearanceStore";
 import { ToastProvider } from "@/store/toastStore";
 import { DocumentsProvider } from "@/store/documentsStore";
+import { AuthProvider } from "@/store/authStore";
+import { ApplicationsProvider } from "@/store/applicationsStore";
 
 // RTL only takes effect after the native app restarts (I18nManager caches
 // the layout direction natively), so this applies on the next reload.
@@ -43,24 +45,29 @@ export default function RootLayout() {
 
   return (
     <SafeAreaProvider>
-      <AppearanceProvider>
-        <DocumentsProvider>
-          <ToastProvider>
-            <Stack screenOptions={{ headerShown: false }}>
-              <Stack.Screen name="index" />
-              <Stack.Screen name="onboarding" />
-              <Stack.Screen name="login" />
-              <Stack.Screen name="register" />
-              <Stack.Screen name="camera" />
-              <Stack.Screen name="document/[id]/index" />
-              <Stack.Screen name="document/[id]/chat" />
-              <Stack.Screen name="document/[id]/share" />
-              <Stack.Screen name="(tabs)" />
-              <Stack.Screen name="+not-found" />
-            </Stack>
-          </ToastProvider>
-        </DocumentsProvider>
-      </AppearanceProvider>
+      <AuthProvider>
+        <AppearanceProvider>
+          <DocumentsProvider>
+            <ApplicationsProvider>
+              <ToastProvider>
+                <Stack screenOptions={{ headerShown: false }}>
+                  <Stack.Screen name="index" />
+                  <Stack.Screen name="onboarding" />
+                  <Stack.Screen name="login" />
+                  <Stack.Screen name="register" />
+                  <Stack.Screen name="camera" />
+                  <Stack.Screen name="services/[serviceId]" />
+                  <Stack.Screen name="document/[id]/index" />
+                  <Stack.Screen name="document/[id]/chat" />
+                  <Stack.Screen name="document/[id]/share" />
+                  <Stack.Screen name="(tabs)" />
+                  <Stack.Screen name="+not-found" />
+                </Stack>
+              </ToastProvider>
+            </ApplicationsProvider>
+          </DocumentsProvider>
+        </AppearanceProvider>
+      </AuthProvider>
     </SafeAreaProvider>
   );
 }

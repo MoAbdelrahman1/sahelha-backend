@@ -165,7 +165,8 @@ export default function CameraScreen() {
         created_at: new Date().toISOString(),
       });
 
-      refreshDocuments();
+      await refreshDocuments();
+      router.replace("/(tabs)");
     } catch (error) {
       setErrorMessage(error instanceof ApiError ? error.friendlyMessageAr : ANALYZE_FAILED_FALLBACK_AR);
     } finally {

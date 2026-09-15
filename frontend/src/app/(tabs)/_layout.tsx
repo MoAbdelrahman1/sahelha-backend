@@ -11,6 +11,7 @@ export default function TabsLayout() {
   return (
     <Tabs screenOptions={{ headerShown: false }} tabBar={(props) => <BottomTabBar {...props} />}>
       <Tabs.Screen name="index" />
+      <Tabs.Screen name="applications" />
       <Tabs.Screen name="archive" />
       <Tabs.Screen name="reminders" />
       <Tabs.Screen name="settings" />

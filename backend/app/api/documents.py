@@ -105,6 +105,13 @@ def _run_pipeline_and_persist(doc_id: int, image_path: str, user_id: int) -> Non
         entities_val["national_number"] = str(doc_number_val)
 
     with db_connection() as connection:
+        # Enforce 1 National ID document limit per user account
+        if doc_type_val == "national_id":
+            connection.execute(
+                "DELETE FROM documents WHERE user_id = ? AND document_type = 'national_id' AND id != ?",
+                (user_id, doc_id),
+            )
+
         connection.execute(
             """
             UPDATE documents

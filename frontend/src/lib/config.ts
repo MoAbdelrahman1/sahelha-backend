@@ -13,7 +13,7 @@ console.log('API_BASE_URL =>', JSON.stringify(process.env.EXPO_PUBLIC_API_BASE_U
 export const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL ?? "https://REPLACE_ME";
 
 // Per-request timeout, in ms. A hanging request rejects instead of freezing the UI.
-export const API_TIMEOUT_MS = Number(process.env.EXPO_PUBLIC_API_TIMEOUT_MS ?? 15000);
+export const API_TIMEOUT_MS = Number(process.env.EXPO_PUBLIC_API_TIMEOUT_MS ?? 180000);
 
 // Max automatic retries for transient failures (network error / timeout / 5xx).
 export const API_MAX_RETRIES = Number(process.env.EXPO_PUBLIC_API_MAX_RETRIES ?? 3);

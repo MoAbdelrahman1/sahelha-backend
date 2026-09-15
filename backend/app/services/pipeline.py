@@ -175,19 +175,15 @@ def process_document_pipeline(image_path: str) -> dict[str, Any]:
         analysis: dict[str, Any] = analyze_document_text(ocr_text)
         if analysis.get("doc_type") == "national_id":
             try:
-                from app.services.ocr_service import (
-                    detect_id_card,
-                    crop_national_number_region,
-                    extract_national_id_from_image
-                )
-
-                card = detect_id_card(image_path)
-                if card is not None:
-                    number_region = crop_national_number_region(card)
-                    national_number = extract_national_id_from_image(number_region)
-                    if national_number:
+                import cv2
+                from app.services.ocr_service import extract_national_id_from_image
+                img = cv2.imread(image_path)
+                if img is not None:
+                    nid = extract_national_id_from_image(img)
+                    if nid and len(nid) == 14 and nid.isdigit() and nid[0] in ("2", "3"):
                         analysis.setdefault("entities", {})
-                        analysis["entities"]["national_number"] = national_number
+                        analysis["entities"]["national_number"] = nid
+                        analysis["doc_number"] = nid
             except Exception as e:
                 _safe_print(f"[ID CROP FALLBACK] Non-fatal card cropping issue: {e}")
 

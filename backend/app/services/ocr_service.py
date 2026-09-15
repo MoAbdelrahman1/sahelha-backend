@@ -511,21 +511,64 @@ def extract_national_id(text: str):
     return candidates[0][1]
 
 
-def extract_national_id_from_image(image):
+def extract_national_id_from_image(image) -> str | None:
+    """
+    Locates and extracts the 14-digit Egyptian National ID directly from image pixels
+    using bilateral filtering and adaptive bottom-strip cropping to remove background artwork.
+    """
+    if image is None:
+        return None
+
     reader = get_digit_reader()
+    arabic_digits = str.maketrans("٠١٢٣٤٥٦٧٨٩", "0123456789")
 
-    results = reader.readtext(
-        image,
-        detail=1,
-        paragraph=False,
-        allowlist="0123456789٠١٢٣٤٥٦٧٨٩۰۱۲۳۴۵۶۷۸۹",
-        mag_ratio=1.0,
-        text_threshold=0.3,
-        low_text=0.1,
-    )
+    # Pass 1: Direct digit extraction on input image
+    try:
+        results = reader.readtext(
+            image,
+            detail=1,
+            paragraph=False,
+            allowlist="0123456789٠١٢٣٤٥٦٧٨٩",
+            mag_ratio=1.0,
+            text_threshold=0.2,
+            low_text=0.08,
+        )
+        text = " ".join(r[1].translate(arabic_digits) for r in results)
+        nid = extract_national_id(text)
+        if nid and len(nid) == 14 and nid[0] in ("2", "3"):
+            return nid
+    except Exception:
+        pass
 
-    text = " ".join(r[1] for r in results)
-    return extract_national_id(text)
+    # Pass 2: Enhanced bottom-strip crop with bilateral filtering (removes Pyramid artwork)
+    try:
+        import cv2
+        h, w = image.shape[:2]
+        crop = image[int(h * 0.65):int(h * 0.98), int(w * 0.25):int(w * 0.98)]
+        if crop.size > 0:
+            resized = cv2.resize(crop, None, fx=3.0, fy=3.0, interpolation=cv2.INTER_CUBIC)
+            gray = cv2.cvtColor(resized, cv2.COLOR_BGR2GRAY)
+            norm = cv2.normalize(gray, None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX)
+            filtered = cv2.bilateralFilter(norm, 9, 75, 75)
+
+            results = reader.readtext(
+                filtered,
+                detail=1,
+                allowlist="0123456789٠١٢٣٤٥٦٧٨٩",
+                low_text=0.02,
+                text_threshold=0.05,
+            )
+            tokens = [r[1].translate(arabic_digits).strip() for r in results]
+            raw_text = " ".join(tokens)
+            digits_only = re.sub(r"\D", "", raw_text)
+
+            nid = extract_national_id(raw_text) or extract_national_id(digits_only)
+            if nid and len(nid) == 14 and nid[0] in ("2", "3"):
+                return nid
+    except Exception:
+        pass
+
+    return None
 
 
 
@@ -607,9 +650,13 @@ def parse_egyptian_national_id_text(ocr_text: str) -> dict[str, Any] | None:
     if not raw_lines:
         return None
 
-    # Check for National ID cues
-    cues = ["بطاقة", "تحقيق الشخصية", "شخصية", "جمهورية مصر العربية", "الرقم القومي"]
-    if not any(cue in ocr_text for cue in cues):
+    # Check for National ID cues (header text, serial code pattern, or governorate/city presence)
+    has_header_cue = any(cue in ocr_text for cue in ["بطاقة", "تحقيق الشخصية", "شخصية", "جمهورية مصر العربية", "الرقم القومي"])
+    has_serial_pattern = bool(re.search(r"\b[0-9][A-Za-z][0-9]{7}\b|\b[A-Za-z]{2}[0-9]{7}\b", ocr_text))
+    has_nid_pattern = bool(re.search(r"[٢-٣2-3]\s*(?:[٠-٩0-9]\s*){13}", ocr_text))
+    has_gov_cue = any(gov in ocr_text for gov in EGYPTIAN_GOVERNORATES) or any(c in ocr_text for c in ["دمنهور", "البعبرة", "الهرم", "المحلة", "طنطا", "المنصورة"])
+
+    if not (has_header_cue or has_serial_pattern or has_nid_pattern or has_gov_cue):
         return None
 
     header_indices = []
@@ -624,7 +671,17 @@ def parse_egyptian_national_id_text(ocr_text: str) -> dict[str, Any] | None:
     governorate = None
     found_street = False
 
-    street_indicators = ["ش ", "ش.", "شارع", "طريق", "حارة", "عمارة", "ميدان", "مجاورة", "قطعة", "ب -"]
+    street_indicators = ["ش ", "ش.", "شارع", "طريق", "حارة", "عمارة", "ميدان", "مجاورة", "قطعة", "ب -", "معهد", "انمعد"]
+    city_to_gov = {
+        "دمنهور": "البحيرة", "البعبرة": "البحيرة", "كفر الدوار": "البحيرة", "إيتاي": "البحيرة",
+        "الهرم": "الجيزة", "الدقي": "الجيزة", "العجوزة": "الجيزة", "أكتوبر": "الجيزة",
+        "المحلة": "الغربية", "طنطا": "الغربية", "زفتى": "الغربية",
+        "المنصورة": "الدقهلية", "ميت غمر": "الدقهلية", "طلخا": "الدقهلية",
+        "الزقازيق": "الشرقية", "بلبيس": "الشرقية", "العاشر": "الشرقية",
+        "بنها": "القليوبية", "شبرا الخيمة": "القليوبية", "طوخ": "القليوبية",
+        "شبين الكوم": "المنوفية", "منوف": "المنوفية", "أشمون": "المنوفية",
+        "مدينة نصر": "القاهرة", "المعادي": "القاهرة", "حلوان": "القاهرة", "عين شمس": "القاهرة",
+    }
 
     for line in raw_lines[start_idx:]:
         clean_compact = line.replace(" ", "")
@@ -639,15 +696,21 @@ def parse_egyptian_national_id_text(ocr_text: str) -> dict[str, Any] | None:
         if len(digits_only) >= 8 or re.search(r"\b(?:19|20)\d{2}[/\-\.]", line):
             continue
 
-        # Detect governorate
+        # Detect governorate from standard list or city map
         for gov in EGYPTIAN_GOVERNORATES:
             if gov in line:
                 governorate = gov
                 break
+        if not governorate:
+            for city, mapped_gov in city_to_gov.items():
+                if city in line:
+                    governorate = mapped_gov
+                    break
 
-        # Detect street address line
+        # Detect address lines
         has_street_cue = any(kw in line for kw in street_indicators) or (re.search(r"^[٠-٩0-9]+\s*ش", line) is not None)
-        if has_street_cue or found_street:
+        has_city_cue = any(city in line for city in city_to_gov) or any(gov in line for gov in EGYPTIAN_GOVERNORATES)
+        if has_street_cue or has_city_cue or found_street:
             found_street = True
             clean_addr_line = re.sub(r"[|=\.؛;:_]+", " ", line)
             clean_addr_line = " ".join(clean_addr_line.split())

@@ -1,8 +1,9 @@
-import React from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import React, { useState } from "react";
+import { Pressable, StyleSheet, Text, View, Modal } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useTheme } from "@/features/theme/ThemeContext";
+import { useAuth } from "@/store/authStore";
 
 type HeaderProps = {
   onServicesPress?: () => void;
@@ -10,7 +11,9 @@ type HeaderProps = {
 
 export const Header = ({ onServicesPress }: HeaderProps) => {
   const router = useRouter();
-  const { colors, themeMode } = useTheme();
+  const { colors } = useTheme();
+  const { user, isLoggedIn, logoutUser } = useAuth();
+  const [showMenu, setShowMenu] = useState(false);
 
   return (
     <View
@@ -77,6 +80,20 @@ export const Header = ({ onServicesPress }: HeaderProps) => {
         {/* Center Section: Navigation Links */}
         <View style={styles.navLinks}>
           <Pressable
+            onPress={() => router.push("/")}
+            accessibilityRole="link"
+            accessibilityLabel="الصفحة الرئيسية"
+            style={({ pressed }) => [
+              styles.navLink,
+              pressed && styles.pressedState,
+            ]}
+          >
+            <Text style={[styles.navLinkText, { color: colors.textPrimary }]}>
+              الرئيسية
+            </Text>
+          </Pressable>
+
+          <Pressable
             onPress={onServicesPress || (() => router.push("/(tabs)/services"))}
             accessibilityRole="link"
             accessibilityLabel="تصفح جميع الخدمات الحكومية"
@@ -117,14 +134,48 @@ export const Header = ({ onServicesPress }: HeaderProps) => {
               المساعد الصوتي
             </Text>
           </Pressable>
+
+          <Pressable
+            onPress={() => router.push("/(tabs)/applications")}
+            accessibilityRole="link"
+            accessibilityLabel="طلباتي والمتابعة"
+            style={({ pressed }) => [
+              styles.navLink,
+              pressed && styles.pressedState,
+            ]}
+          >
+            <Text style={[styles.navLinkText, { color: colors.textPrimary }]}>
+              طلباتي
+            </Text>
+          </Pressable>
+
+          <Pressable
+            onPress={() => router.push("/(tabs)/archive")}
+            accessibilityRole="link"
+            accessibilityLabel="مستنداتي الممسوحة"
+            style={({ pressed }) => [
+              styles.navLink,
+              pressed && styles.pressedState,
+            ]}
+          >
+            <Text style={[styles.navLinkText, { color: colors.textPrimary }]}>
+              مستنداتي
+            </Text>
+          </Pressable>
         </View>
 
-        {/* Left Section: Login & App Entry */}
+        {/* Left Section: Login / User Account */}
         <View style={styles.leftGroup}>
           <Pressable
-            onPress={() => router.push("/login")}
+            onPress={() => {
+              if (isLoggedIn) {
+                setShowMenu((v) => !v);
+              } else {
+                router.push("/login");
+              }
+            }}
             accessibilityRole="button"
-            accessibilityLabel="تسجيل الدخول إلى حسابك"
+            accessibilityLabel={isLoggedIn ? `حساب ${user?.full_name}` : "تسجيل الدخول إلى حسابك"}
             style={({ pressed }) => [
               styles.loginButton,
               {
@@ -135,11 +186,91 @@ export const Header = ({ onServicesPress }: HeaderProps) => {
               pressed && styles.pressedState,
             ]}
           >
-            <Ionicons name="person-circle-outline" size={22} color={colors.btnPrimaryText} />
-            <Text style={[styles.loginButtonText, { color: colors.btnPrimaryText }]}>
-              تسجيل الدخول
+            <Ionicons
+              name={isLoggedIn ? "person-circle" : "person-circle-outline"}
+              size={22}
+              color={colors.btnPrimaryText}
+            />
+            <Text
+              numberOfLines={1}
+              style={[styles.loginButtonText, { color: colors.btnPrimaryText, maxWidth: 140 }]}
+            >
+              {isLoggedIn ? (user?.full_name || "حسابي") : "تسجيل الدخول"}
             </Text>
           </Pressable>
+
+          {showMenu && isLoggedIn && (
+            <View
+              style={{
+                position: "absolute",
+                top: 52,
+                left: 0,
+                backgroundColor: colors.bgSurface,
+                borderColor: colors.border,
+                borderWidth: 2,
+                borderRadius: 12,
+                padding: 8,
+                minWidth: 180,
+                shadowColor: "#000",
+                shadowOffset: { width: 0, height: 4 },
+                shadowOpacity: 0.15,
+                shadowRadius: 8,
+                elevation: 6,
+                zIndex: 999,
+              }}
+            >
+              <Text
+                style={{
+                  fontFamily: "IBMPlexSansArabic_700Bold",
+                  fontSize: 14,
+                  color: colors.textPrimary,
+                  paddingHorizontal: 10,
+                  paddingVertical: 6,
+                  borderBottomWidth: 1,
+                  borderBottomColor: colors.border,
+                  textAlign: "right",
+                }}
+              >
+                {user?.full_name}
+              </Text>
+
+              <Pressable
+                onPress={() => {
+                  setShowMenu(false);
+                  router.push("/(tabs)/applications");
+                }}
+                style={{ paddingVertical: 8, paddingHorizontal: 10 }}
+              >
+                <Text style={{ fontFamily: "IBMPlexSansArabic_700Bold", fontSize: 13, color: colors.textPrimary, textAlign: "right" }}>
+                  📋 طلباتي ومتابعة الخدمات
+                </Text>
+              </Pressable>
+
+              <Pressable
+                onPress={() => {
+                  setShowMenu(false);
+                  router.push("/(tabs)/archive");
+                }}
+                style={{ paddingVertical: 8, paddingHorizontal: 10 }}
+              >
+                <Text style={{ fontFamily: "IBMPlexSansArabic_500Medium", fontSize: 13, color: colors.textPrimary, textAlign: "right" }}>
+                  📁 مستنداتي الممسوحة
+                </Text>
+              </Pressable>
+
+              <Pressable
+                onPress={async () => {
+                  setShowMenu(false);
+                  await logoutUser();
+                }}
+                style={{ paddingVertical: 8, paddingHorizontal: 10 }}
+              >
+                <Text style={{ fontFamily: "IBMPlexSansArabic_700Bold", fontSize: 13, color: "#DC2626", textAlign: "right" }}>
+                  🚪 تسجيل الخروج
+                </Text>
+              </Pressable>
+            </View>
+          )}
 
           <Pressable
             onPress={() => router.push("/(tabs)")}

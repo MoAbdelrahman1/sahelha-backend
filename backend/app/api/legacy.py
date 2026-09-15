@@ -4,7 +4,7 @@ import re
 import sqlite3
 from typing import Any
 
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import Response
 
 from app.db import db_connection
@@ -121,12 +121,14 @@ def nearby_offices(lat: float, lng: float, service_id: int | None = None) -> lis
     return offices
 
 
-@router.post("/api/document/analyze", response_model=DocumentAnalyzeResponse)
+from app.api.documents import get_optional_current_user
 
+@router.post("/api/document/analyze", response_model=DocumentAnalyzeResponse)
 async def analyze_document(
     text: str | None = Form(default=None),
     session_id: str | None = Form(default=None),
     file: UploadFile | None = File(default=None),
+    current_user: dict[str, Any] | None = Depends(get_optional_current_user),
 ) -> dict[str, Any]:
     import asyncio
     import tempfile, os
@@ -244,6 +246,16 @@ async def analyze_document(
         fields.append({"field_key": "job", "field_label_ar": "المهنة", "field_value": str(entities["job"])})
 
     resolved_session_id = str(session_id) if (session_id and not hasattr(session_id, "default")) else None
+    user_id = current_user["id"] if current_user else 1
+
+    if doc_type == "national_id":
+        with db_connection() as connection:
+            connection.execute(
+                "DELETE FROM documents WHERE user_id = ? AND (document_type = 'national_id' OR document_type = 'بطاقة رقم قومي')",
+                (user_id,),
+            )
+            connection.commit()
+
     document_id = store_document(
         resolved_session_id,
         getattr(file, "filename", None) or "document.jpg",
@@ -252,6 +264,7 @@ async def analyze_document(
         summary,
         result.get("ocr_text", ""),
         fields,
+        user_id=user_id,
     )
 
     # Format clean key-value dictionary list for the frontend UI

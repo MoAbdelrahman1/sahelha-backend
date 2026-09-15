@@ -5,6 +5,7 @@ import { useFocusEffect, useRouter } from "expo-router";
 import { AuthScreenShell } from "@/features/auth/components/AuthScreenShell";
 import { ValidatedField } from "@/features/auth/components/ValidatedField";
 import { emailHasInvalidChar, isValidEmail, isValidPassword, passwordHasInvalidChar } from "@/features/auth/validation";
+import { useAuth } from "@/store/authStore";
 import { login } from "@/features/auth/api";
 import { ApiError } from "@/lib/api/errors";
 
@@ -18,6 +19,7 @@ const PASSWORD_ERROR_HINT = "كلمة المرور يجب ألا تقل عن 8 �
 
 export default function LoginScreen() {
   const router = useRouter();
+  const { loginUser } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -64,7 +66,8 @@ export default function LoginScreen() {
 
     setLoading(true);
     try {
-      await login(email, password);
+      const res = await login(email, password);
+      loginUser(res.user);
       resetForm(); // clear the password out of state before navigating away
       // Retarget point: where a successful login sends the user.
       router.replace("/(tabs)");

@@ -1,5 +1,6 @@
 import React from "react";
 import { Pressable, Text, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 
 import { useAppearance } from "@/store/appearanceStore";
@@ -9,13 +10,14 @@ type AppHeaderProps = {
   title: string;
   showBack?: boolean;
   onBack?: () => void;
+  showHome?: boolean;
 };
 
 // Persistent chrome on every screen except onboarding/auth/camera/processing:
 // RTL back chevron, centered Cairo-bold title, a permanent high-contrast
 // toggle pill (SAHELHA_DESIGN_BRIEF.md §5 — "provide a high-contrast mode as a
 // first-class, easy-to-reach setting, not buried").
-export function AppHeader({ title, showBack = false, onBack }: AppHeaderProps) {
+export function AppHeader({ title, showBack = false, onBack, showHome = true }: AppHeaderProps) {
   const router = useRouter();
   const { highContrast, toggleHighContrast } = useAppearance();
   const c = palette(highContrast);
@@ -37,7 +39,7 @@ export function AppHeader({ title, showBack = false, onBack }: AppHeaderProps) {
         borderBottomColor: c.border,
       }}
     >
-      <View style={{ width: 44, height: 44, alignItems: "flex-start", justifyContent: "center" }}>
+      <View style={{ flexDirection: "row-reverse", alignItems: "center", gap: 8 }}>
         {showBack ? (
           <Pressable
             onPress={handleBack}
@@ -55,6 +57,30 @@ export function AppHeader({ title, showBack = false, onBack }: AppHeaderProps) {
                 transform: [{ rotate: "-135deg" }],
               }}
             />
+          </Pressable>
+        ) : null}
+
+        {showHome ? (
+          <Pressable
+            onPress={() => router.push("/")}
+            accessibilityRole="button"
+            accessibilityLabel="العودة للصفحة الرئيسية"
+            style={{
+              flexDirection: "row-reverse",
+              alignItems: "center",
+              gap: 4,
+              paddingHorizontal: 12,
+              paddingVertical: 6,
+              borderRadius: 20,
+              borderWidth: 1.5,
+              borderColor: c.border,
+              backgroundColor: c.surface,
+            }}
+          >
+            <Ionicons name="home-outline" size={16} color={c.ink} />
+            <Text style={{ fontFamily: "IBMPlexSansArabic_700Bold", fontSize: 12, color: c.ink }}>
+              الرئيسية
+            </Text>
           </Pressable>
         ) : null}
       </View>

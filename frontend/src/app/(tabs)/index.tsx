@@ -72,10 +72,56 @@ export default function HomeScreen() {
         </Text>
 
         {documents.length === 0 ? (
-          <View style={{ paddingVertical: 40, alignItems: "center", gap: 10 }}>
-            <Text style={{ fontFamily: "IBMPlexSansArabic_600SemiBold", fontSize: 16, color: c.secondary, textAlign: "center" }}>
-              لسه معندكش مستندات. اضغط على "مسح مستند جديد" عشان تبدأ.
+          <View
+            style={{
+              paddingVertical: 32,
+              paddingHorizontal: 20,
+              alignItems: "center",
+              gap: 12,
+              backgroundColor: c.surface,
+              borderRadius: 16,
+              borderWidth: 1,
+              borderColor: c.border,
+            }}
+          >
+            <View
+              style={{
+                width: 56,
+                height: 56,
+                borderRadius: 28,
+                backgroundColor: highContrast ? c.ink : "#E7EAFB",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <Ionicons name="document-text-outline" size={30} color={highContrast ? c.pageBg : c.primaryBg} />
+            </View>
+            <Text style={{ fontFamily: "Cairo_800ExtraBold", fontSize: 17, color: c.ink, textAlign: "center" }}>
+              لا توجد مستندات ممسوحة ضوئياً بعد
             </Text>
+            <Text style={{ fontFamily: "IBMPlexSansArabic_500Medium", fontSize: 13.5, color: c.secondary, textAlign: "center", lineHeight: 22 }}>
+              عند مسح بطاقة الرقم القومي أو المستندات الرسمية، سيتم تعبئة بياناتك تلقائياً في كافة الخدمات الحكومية.
+            </Text>
+            <Pressable
+              onPress={() => router.push("/camera")}
+              accessibilityRole="button"
+              accessibilityLabel="مسح مستند جديد"
+              style={{
+                flexDirection: "row-reverse",
+                alignItems: "center",
+                gap: 8,
+                backgroundColor: c.primaryBg,
+                paddingHorizontal: 20,
+                paddingVertical: 12,
+                borderRadius: 12,
+                marginTop: 4,
+              }}
+            >
+              <Ionicons name="camera" size={18} color={c.primaryFg} />
+              <Text style={{ fontFamily: "Cairo_700Bold", fontSize: 14, color: c.primaryFg }}>
+                مسح مستند جديد
+              </Text>
+            </Pressable>
           </View>
         ) : (
           <View style={{ gap: 10 }}>
