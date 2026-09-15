@@ -64,40 +64,36 @@ def get_digit_reader():
 
 
 def preprocess_for_ocr(image_path: str) -> "np.ndarray":
-    cv2 = import_module("cv2")
-
-
     path = Path(image_path)
-
     if not path.exists():
-        raise FileNotFoundError(
-            f"Image file not found: {image_path}"
-        )
+        raise FileNotFoundError(f"Image file not found: {image_path}")
 
-    image = cv2.imread(str(path))
+    try:
+        cv2 = import_module("cv2")
+        image = cv2.imread(str(path))
+        if image is not None and image.shape[0] > 0 and image.shape[1] > 0:
+            height, width = image.shape[:2]
+            if max(height, width) > 1800:
+                scale = 1800 / max(height, width)
+                image = cv2.resize(image, None, fx=scale, fy=scale, interpolation=cv2.INTER_AREA)
+            elif max(height, width) < 1000:
+                scale = 1000 / max(height, width)
+                image = cv2.resize(image, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
+            return image
+    except Exception:
+        pass
 
-    if image is None:
-        raise ValueError(
-            f"Cannot decode image: {image_path}"
-        )
-
-
-    height, width = image.shape[:2]
-
-    if width <= 0 or height <= 0:
-        raise ValueError(
-            "Invalid image dimensions"
-        )
-
-
+    import numpy as np
+    from PIL import Image
+    pil_img = Image.open(path).convert("RGB")
+    width, height = pil_img.size
     if max(height, width) > 1800:
         scale = 1800 / max(height, width)
-        image = cv2.resize(image, None, fx=scale, fy=scale, interpolation=cv2.INTER_AREA)
+        pil_img = pil_img.resize((int(width * scale), int(height * scale)), Image.Resampling.LANCZOS)
     elif max(height, width) < 1000:
         scale = 1000 / max(height, width)
-        image = cv2.resize(image, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
-
-    return image
+        pil_img = pil_img.resize((int(width * scale), int(height * scale)), Image.Resampling.BICUBIC)
+    return np.array(pil_img)[:, :, ::-1]
 
 
 
