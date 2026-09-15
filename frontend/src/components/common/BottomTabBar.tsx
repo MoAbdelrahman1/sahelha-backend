@@ -67,8 +67,8 @@ export function BottomTabBar({ state, navigation }: TabBarProps) {
         backgroundColor: c.pageBg,
       }}
     >
-      {renderTab("settings")}
-      {renderTab("applications")}
+      {renderTab("archive")}
+      {renderTab("index")}
 
       <Pressable
         onPress={openChatGlobal}
@@ -89,11 +89,11 @@ export function BottomTabBar({ state, navigation }: TabBarProps) {
           elevation: 6,
         }}
       >
-        <Ionicons name="mic" size={26} color={c.primaryFg} />
+        <Ionicons name="mic" size={26} color="#FFFFFF" />
       </Pressable>
 
-      {renderTab("index")}
-      {renderTab("archive")}
+      {renderTab("applications")}
+      {renderTab("settings")}
     </View>
   );
 }

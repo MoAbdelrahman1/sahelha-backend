@@ -1,58 +1,23 @@
-import { Ionicons } from "@expo/vector-icons";
+import React from "react";
 import { Tabs } from "expo-router";
-
-const ACTIVE_COLOR = "#0B5FFF";
-const INACTIVE_COLOR = "#6B7280";
+import { BottomTabBar } from "@/components/common/BottomTabBar";
 
 export default function TabsLayout() {
   return (
     <Tabs
+      tabBar={(props) => <BottomTabBar {...props} />}
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: ACTIVE_COLOR,
-        tabBarInactiveTintColor: INACTIVE_COLOR,
-        tabBarStyle: { height: 72, paddingBottom: 10, paddingTop: 8 },
-        tabBarLabelStyle: { fontSize: 13 },
       }}
     >
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: "الرئيسية",
-          tabBarAccessibilityLabel: "الرئيسية",
-          tabBarIcon: ({ color }) => <Ionicons name="home" size={28} color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="chat"
-        options={{
-          title: "المساعد",
-          tabBarAccessibilityLabel: "المساعد",
-          tabBarIcon: ({ color }) => (
-            <Ionicons name="chatbubble-ellipses" size={28} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="scan"
-        options={{
-          title: "تصوير مستند",
-          tabBarAccessibilityLabel: "تصوير مستند",
-          tabBarIcon: ({ color }) => (
-            <Ionicons name="camera" size={28} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="services"
-        options={{
-          title: "الخدمات",
-          tabBarAccessibilityLabel: "الخدمات",
-          tabBarIcon: ({ color }) => (
-            <Ionicons name="grid" size={28} color={color} />
-          ),
-        }}
-      />
+      <Tabs.Screen name="index" options={{ title: "مستنداتي" }} />
+      <Tabs.Screen name="applications" options={{ title: "طلباتي" }} />
+      <Tabs.Screen name="archive" options={{ title: "الأرشيف" }} />
+      <Tabs.Screen name="reminders" options={{ title: "التذكيرات" }} />
+      <Tabs.Screen name="settings" options={{ title: "الإعدادات" }} />
+      <Tabs.Screen name="scan" options={{ href: null }} />
+      <Tabs.Screen name="chat" options={{ href: null }} />
+      <Tabs.Screen name="services" options={{ href: null }} />
     </Tabs>
   );
 }
