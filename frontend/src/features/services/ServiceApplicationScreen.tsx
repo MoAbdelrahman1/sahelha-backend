@@ -78,21 +78,22 @@ export function ServiceApplicationScreen({ serviceId, onCancel }: ServiceApplica
         const scannedBirthDoc = documents.find((d) => d.doc_type === "birth_certificate");
 
         // Helper to get fallback value for standard fields
+        const uAny = user as any;
         const getStandardValue = (field: FormField): { val: string; isPreFilled: boolean } => {
           if (field.id === "full_name" || field.field_type === "name") {
-            const val = user?.full_name || "محمود عصام عبدالعزيز قطب محمد";
+            const val = uAny?.full_name || "محمود عصام عبدالعزيز قطب محمد";
             return { val, isPreFilled: true };
           }
           if (field.id === "national_id" || field.field_type === "national_id") {
-            const val = user?.national_id || "28909091300595";
+            const val = uAny?.national_id || "28909091300595";
             return { val, isPreFilled: true };
           }
           if (field.id === "phone" || field.field_type === "phone") {
-            const val = user?.phone_number || "01069616399";
+            const val = uAny?.phone_number || "01069616399";
             return { val, isPreFilled: true };
           }
           if (field.id === "delivery_address") {
-            const val = user?.governorate ? `محافظة ${user.governorate}` : "القاهرة، مصر";
+            const val = uAny?.governorate ? `محافظة ${uAny.governorate}` : "القاهرة، مصر";
             return { val, isPreFilled: true };
           }
           return { val: "", isPreFilled: false };
@@ -378,7 +379,7 @@ export function ServiceApplicationScreen({ serviceId, onCancel }: ServiceApplica
                 ) : (
                   <View style={{ flexDirection: "row-reverse", alignItems: "center", gap: 4, backgroundColor: "#FEF3C7", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, borderWidth: 1, borderColor: "#FDE68A" }}>
                     <Ionicons name="time-outline" size={15} color="#B45309" />
-                    <Text style={{ fontSize: 12, fontWeight: "700", color="#B45309" }}>يتطلب الإجابة</Text>
+                    <Text style={{ fontSize: 12, fontWeight: "700", color: "#B45309" }}>يتطلب الإجابة</Text>
                   </View>
                 )}
               </View>
