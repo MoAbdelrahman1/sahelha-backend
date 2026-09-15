@@ -323,9 +323,18 @@ export default function ScanScreen() {
     try {
       const result = await analyzeDocument(photoUri, selectedFile);
       setAnalyzeResult(result);
+      // Auto-reload documents list and reset preview
+      await loadDocuments();
+      setTimeout(() => {
+        setFlowState("idle");
+        setPhotoUri(null);
+        setSelectedFile(null);
+        setAnalyzeResult(null);
+      }, 1500);
     } catch (error) {
       setErrorMessage(error instanceof ApiError ? error.friendlyMessageAr : "تعذّر تحليل المستند. يرجى المحاولة مرة أخرى.");
-    } finally { setFlowState("captured"); }
+      setFlowState("captured");
+    }
   };
 
   const rows = analyzeResult ? buildScanResultRows(analyzeResult) : [];
