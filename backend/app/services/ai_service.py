@@ -770,8 +770,8 @@ def analyze_document_text(ocr_text: str) -> dict[str, Any]:
     normalized = ocr_text.strip()
     if not normalized:
         return dict(_fallback_analysis(ocr_text))
-    print(f"[AI SERVICE] OCR text length: {len(normalized)}")
-    print(f"[AI SERVICE] Provider preference: {'cloud (Groq)' if _AI_PREFER_CLOUD else f'local (Ollama: {_OLLAMA_MODEL})'}")
+    provider_name = f"cloud (Azure OpenAI: {_AZURE_OPENAI_DEPLOYMENT})" if _AZURE_OPENAI_KEY else ("cloud (Groq)" if _AI_PREFER_CLOUD else f"local (Ollama: {_OLLAMA_MODEL})")
+    print(f"[AI SERVICE] Provider preference: {provider_name}")
 
     try:
         raw = chat_completion(
