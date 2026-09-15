@@ -73,13 +73,25 @@ def preprocess_for_ocr(image_path: str) -> "np.ndarray":
         image = cv2.imread(str(path))
         if image is not None and image.shape[0] > 0 and image.shape[1] > 0:
             height, width = image.shape[:2]
-            if max(height, width) > 1800:
-                scale = 1800 / max(height, width)
+            # Optimal resolution scaling for Arabic EasyOCR line detection
+            if max(height, width) > 2000:
+                scale = 2000 / max(height, width)
                 image = cv2.resize(image, None, fx=scale, fy=scale, interpolation=cv2.INTER_AREA)
-            elif max(height, width) < 1000:
-                scale = 1000 / max(height, width)
+            elif max(height, width) < 1200:
+                scale = 1600 / max(height, width)
                 image = cv2.resize(image, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
-            return image
+
+            # Apply LAB color space CLAHE to boost faint Arabic cursive strokes against watermarks
+            lab = cv2.cvtColor(image, cv2.COLOR_BGR2LAB)
+            l_channel, a_channel, b_channel = cv2.split(lab)
+            clahe = cv2.createCLAHE(clipLimit=2.2, tileGridSize=(8, 8))
+            cl = clahe.apply(l_channel)
+            enhanced_lab = cv2.merge((cl, a_channel, b_channel))
+            enhanced_bgr = cv2.cvtColor(enhanced_lab, cv2.COLOR_LAB2BGR)
+
+            # Edge-preserving bilateral filter to smooth noise without blurring font outlines
+            denoised = cv2.bilateralFilter(enhanced_bgr, d=5, sigmaColor=50, sigmaSpace=50)
+            return denoised
     except Exception:
         pass
 
@@ -87,11 +99,11 @@ def preprocess_for_ocr(image_path: str) -> "np.ndarray":
     from PIL import Image
     pil_img = Image.open(path).convert("RGB")
     width, height = pil_img.size
-    if max(height, width) > 1800:
-        scale = 1800 / max(height, width)
+    if max(height, width) > 2000:
+        scale = 2000 / max(height, width)
         pil_img = pil_img.resize((int(width * scale), int(height * scale)), Image.Resampling.LANCZOS)
-    elif max(height, width) < 1000:
-        scale = 1000 / max(height, width)
+    elif max(height, width) < 1200:
+        scale = 1600 / max(height, width)
         pil_img = pil_img.resize((int(width * scale), int(height * scale)), Image.Resampling.BICUBIC)
     return np.array(pil_img)[:, :, ::-1]
 

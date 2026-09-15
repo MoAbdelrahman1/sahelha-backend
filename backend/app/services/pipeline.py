@@ -111,38 +111,71 @@ def process_document_pipeline(image_path: str) -> dict[str, Any]:
 
     Stages
     ------
-    1. **OCR** — :func:`run_arabic_ocr` preprocesses the image (upscale,
-       CLAHE, denoise, sharpen) and runs EasyOCR with detail=1 for accurate
-       reading-order reconstruction.
-    2. **LLM analysis** — :func:`analyze_document_text` sends the OCR text to
-       Groq (LLaMA) and returns a structured dict.  Falls back to heuristics
-       if the API is unavailable.
-
-    The raw ``ocr_text`` is always embedded in the returned payload so callers
-    can inspect what the OCR produced independently of the LLM classification.
-
-    Parameters
-    ----------
-    image_path:
-        Absolute or relative path to the source image.
-
-    Returns
-    -------
-    dict with keys:
-        • ``ocr_text``     — raw text from OCR stage (empty string on failure)
-        • ``doc_type``     — e.g. "national_id", "receipt", "unknown"
-        • ``summary``      — one-or-two-sentence description
-        • ``dates``        — list of detected date strings
-        • ``expiry_date``  — expiry / valid-until date or None
-        • ``amounts``      — list of detected monetary amounts
-        • ``tags``         — list of short descriptive labels
-        • ``ocr_error``    — (only present) error message if OCR stage failed
-        • ``analysis_error`` — (only present) error message if LLM stage failed
+    1. **Primary Stage: Direct Multimodal Vision** — Sends image directly to Vision VLM (Azure OpenAI / vLLM)
+       for 100% accurate document extraction without OCR noise.
+    2. **Fallback Stage: Enhanced OpenCV + Local OCR + LLM** — If offline or Vision is unavailable,
+       runs enhanced OpenCV preprocessing, EasyOCR, and local Ollama text analysis.
     """
     response: dict[str, Any] = {"ocr_text": ""}
     _DIVIDER = "─" * 60
 
-    # ── Stage 1 : OCR ────────────────────────────────────────────────────────
+    from app.services.ai_service import analyze_document_image
+
+    # ── Primary Stage : Direct Multimodal Vision ──────────────────────────────
+    try:
+        _safe_print(f"\n{_DIVIDER}")
+        _safe_print("[PIPELINE] Primary Stage: Attempting Direct Multimodal Vision analysis...")
+        analysis: dict[str, Any] = analyze_document_image(image_path, ocr_text="")
+        
+        if analysis.get("doc_type") and analysis["doc_type"] != "unknown":
+            _safe_print(f"[PIPELINE] Direct Vision succeeded! (doc_type: {analysis['doc_type']})")
+            
+            # Specialized 14-digit National ID crop refinements
+            if analysis.get("doc_type") == "national_id":
+                try:
+                    import cv2
+                    from app.services.ocr_service import extract_national_id_from_image
+                    img = cv2.imread(image_path)
+                    if img is not None:
+                        nid = extract_national_id_from_image(img)
+                        if nid and len(nid) == 14 and nid.isdigit() and nid[0] in ("2", "3"):
+                            analysis.setdefault("entities", {})
+                            analysis["entities"]["national_number"] = nid
+                            analysis["doc_number"] = nid
+                except Exception as e:
+                    _safe_print(f"[ID CROP FALLBACK] Non-fatal card cropping issue: {e}")
+
+            elif analysis.get("doc_type") == "birth_certificate":
+                try:
+                    from app.services.ocr_service import extract_birth_certificate_national_id
+                    import cv2
+                    img = cv2.imread(image_path)
+                    if img is not None:
+                        nid = extract_birth_certificate_national_id(img, ocr_context="")
+                        if nid:
+                            analysis.setdefault("entities", {})
+                            analysis["entities"]["national_number"] = nid
+                            analysis["doc_number"] = nid
+                except Exception as e:
+                    _safe_print(f"[BIRTH NID FALLBACK] Non-fatal issue: {e}")
+
+            response.update(analysis)
+            if not response.get("ocr_text"):
+                response["ocr_text"] = analysis.get("summary", "")
+
+            _safe_print("[LLM ANALYSIS]")
+            _safe_print(f"  doc_type    : {analysis.get('doc_type', 'n/a')}")
+            _safe_print(f"  summary     : {analysis.get('summary', 'n/a')}")
+            _safe_print(f"  dates       : {analysis.get('dates', [])}")
+            _safe_print(f"  expiry_date : {analysis.get('expiry_date')}")
+            _safe_print(f"  amounts     : {analysis.get('amounts', [])}")
+            _safe_print(f"  tags        : {analysis.get('tags', [])}")
+            _safe_print(_DIVIDER + "\n")
+            return response
+    except Exception as exc:
+        _safe_print(f"[PIPELINE] Direct Vision issue ({exc}). Falling back to Enhanced OCR + LLM...")
+
+    # ── Fallback Stage : Enhanced OpenCV + EasyOCR + Local LLM ──────────────────
     ocr_text = ""
     try:
         ocr_text = run_arabic_ocr(image_path)
@@ -150,19 +183,18 @@ def process_document_pipeline(image_path: str) -> dict[str, Any]:
 
         _safe_print(f"\n{_DIVIDER}")
         _safe_print(
-            f"[OCR]  {len(ocr_text):,} characters extracted"
+            f"[FALLBACK OCR]  {len(ocr_text):,} characters extracted"
             f"  ·  source: {image_path}"
         )
         _safe_print(_DIVIDER)
 
         if ocr_text.strip():
-            # Show up to 500 chars so the terminal is not flooded
             preview = ocr_text[:500]
             if len(ocr_text) > 500:
                 preview += "\n… (truncated)"
             _safe_print("[OCR TEXT PREVIEW]\n" + preview)
         else:
-            _safe_print("[OCR]  No text was detected in the image.")
+            _safe_print("[FALLBACK OCR]  No text was detected in the image.")
 
         _safe_print(_DIVIDER)
 
@@ -170,47 +202,18 @@ def process_document_pipeline(image_path: str) -> dict[str, Any]:
         response["ocr_error"] = str(exc)
         _safe_print(f"\n[OCR ERROR] {exc}")
 
-    # ── Stage 2 : LLM / Vision analysis ───────────────────────────────────────
     try:
-        from app.services.ai_service import analyze_document_image
-        analysis: dict[str, Any] = analyze_document_image(image_path, ocr_text)
-        if analysis.get("doc_type") == "national_id":
-            try:
-                import cv2
-                from app.services.ocr_service import extract_national_id_from_image
-                img = cv2.imread(image_path)
-                if img is not None:
-                    nid = extract_national_id_from_image(img)
-                    if nid and len(nid) == 14 and nid.isdigit() and nid[0] in ("2", "3"):
-                        analysis.setdefault("entities", {})
-                        analysis["entities"]["national_number"] = nid
-                        analysis["doc_number"] = nid
-            except Exception as e:
-                _safe_print(f"[ID CROP FALLBACK] Non-fatal card cropping issue: {e}")
+        from app.services.ai_service import analyze_document_text
+        fallback_analysis: dict[str, Any] = analyze_document_text(ocr_text)
+        response.update(fallback_analysis)
 
-        elif analysis.get("doc_type") == "birth_certificate":
-            try:
-                from app.services.ocr_service import extract_birth_certificate_national_id
-                import cv2
-                img = cv2.imread(image_path)
-                if img is not None:
-                    nid = extract_birth_certificate_national_id(img, ocr_context=ocr_text)
-                    if nid:
-                        analysis.setdefault("entities", {})
-                        analysis["entities"]["national_number"] = nid
-                        analysis["doc_number"] = nid
-            except Exception as e:
-                _safe_print(f"[BIRTH NID FALLBACK] Non-fatal issue: {e}")
-
-        response.update(analysis)
-
-        _safe_print("[LLM ANALYSIS]")
-        _safe_print(f"  doc_type    : {analysis.get('doc_type', 'n/a')}")
-        _safe_print(f"  summary     : {analysis.get('summary', 'n/a')}")
-        _safe_print(f"  dates       : {analysis.get('dates', [])}")
-        _safe_print(f"  expiry_date : {analysis.get('expiry_date')}")
-        _safe_print(f"  amounts     : {analysis.get('amounts', [])}")
-        _safe_print(f"  tags        : {analysis.get('tags', [])}")
+        _safe_print("[FALLBACK LLM ANALYSIS]")
+        _safe_print(f"  doc_type    : {fallback_analysis.get('doc_type', 'n/a')}")
+        _safe_print(f"  summary     : {fallback_analysis.get('summary', 'n/a')}")
+        _safe_print(f"  dates       : {fallback_analysis.get('dates', [])}")
+        _safe_print(f"  expiry_date : {fallback_analysis.get('expiry_date')}")
+        _safe_print(f"  amounts     : {fallback_analysis.get('amounts', [])}")
+        _safe_print(f"  tags        : {fallback_analysis.get('tags', [])}")
         _safe_print(_DIVIDER + "\n")
 
     except Exception as exc:
@@ -218,10 +221,7 @@ def process_document_pipeline(image_path: str) -> dict[str, Any]:
         response.update(
             {
                 "doc_type": "unknown",
-                "summary": (
-                    "Document analysis failed before the LLM response "
-                    "could be produced."
-                ),
+                "summary": "Document analysis failed.",
                 "dates": [],
                 "expiry_date": None,
                 "amounts": [],

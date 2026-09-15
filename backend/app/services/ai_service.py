@@ -59,10 +59,15 @@ _AZURE_OPENAI_DEPLOYMENT: str = os.getenv(
 )
 _GROQ_MODEL: str = os.getenv("GROQ_MODEL", "allam-2-7b")
 
-# ── Local AI (Ollama) ────────────────────────────────────────────────────────
+# ── Local AI (Ollama & vLLM) ──────────────────────────────────────────────────
 _OLLAMA_BASE_URL: str = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434").rstrip("/")
 _OLLAMA_MODEL: str = os.getenv("OLLAMA_MODEL", "qwen2.5:7b-egypt")
 _OLLAMA_TIMEOUT_SECONDS: float = float(os.getenv("OLLAMA_TIMEOUT_SECONDS", "180"))
+
+_VLLM_BASE_URL: str = os.getenv("VLLM_BASE_URL", "http://localhost:8000/v1").rstrip("/")
+_VLLM_MODEL: str = os.getenv("VLLM_MODEL", "qwen2.5:7b-egypt")
+_VLLM_TIMEOUT_SECONDS: float = float(os.getenv("VLLM_TIMEOUT_SECONDS", "180"))
+
 _AI_PREFER_CLOUD: bool = os.getenv("AI_PREFER_CLOUD", "false").strip().lower() in {"1", "true", "yes"}
 
 
@@ -264,6 +269,36 @@ def _ollama_chat_completion(
     raise RuntimeError("No available Ollama model could complete the request")
 
 
+def _vllm_chat_completion(
+    messages: list[dict[str, Any]],
+    *,
+    temperature: float = 0.1,
+    max_tokens: int = 1024,
+    json_mode: bool = False,
+) -> str:
+    """Call a locally-running vLLM server's OpenAI-compatible Chat Completions API."""
+    url = f"{_VLLM_BASE_URL.rstrip('/')}/chat/completions"
+    headers = {"Content-Type": "application/json"}
+    api_key = os.getenv("VLLM_API_KEY", "EMPTY")
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+
+    model_name = os.getenv("VLLM_MODEL") or _VLLM_MODEL
+    payload: dict[str, Any] = {
+        "model": model_name,
+        "messages": messages,
+        "temperature": temperature,
+        "max_tokens": max_tokens,
+    }
+    if json_mode:
+        payload["response_format"] = {"type": "json_object"}
+
+    res = requests.post(url, headers=headers, json=payload, timeout=_VLLM_TIMEOUT_SECONDS)
+    res.raise_for_status()
+    data = res.json()
+    return (data.get("choices", [{}])[0].get("message", {}).get("content") or "").strip()
+
+
 def _azure_openai_chat_completion(
     messages: list[dict[str, str]],
     *,
@@ -301,9 +336,20 @@ def chat_completion(
     """Run one chat completion across available providers.
 
     Provider order:
+    - If USE_VLLM=true or VLLM_BASE_URL is set: vLLM -> Ollama -> Azure OpenAI -> Groq
     - If AI_PREFER_CLOUD=false (default): Local Ollama (qwen2.5:7b-egypt) -> Azure OpenAI -> Groq
     - If AI_PREFER_CLOUD=true: Azure OpenAI -> Groq -> Local Ollama
     """
+    use_vllm = os.getenv("USE_VLLM", "false").strip().lower() in {"1", "true", "yes"} or bool(os.getenv("VLLM_BASE_URL"))
+
+    if use_vllm:
+        try:
+            return _vllm_chat_completion(
+                messages, temperature=temperature, max_tokens=max_tokens, json_mode=json_mode
+            )
+        except Exception as exc:
+            print(f"[AI SERVICE] vLLM ({_VLLM_MODEL}) unavailable ({exc}); attempting fallbacks...")
+
     if not _AI_PREFER_CLOUD:
         try:
             return _ollama_chat_completion(
@@ -812,7 +858,57 @@ def analyze_document_text(ocr_text: str) -> dict[str, Any]:
         print("========================================\n")
 
 def analyze_document_image(image_path: str, ocr_text: str = "") -> dict[str, Any]:
-    """Analyze document image directly via Multimodal Vision (Azure OpenAI Vision), falling back to text OCR."""
+    """Analyze document image directly via Multimodal Vision (vLLM / Azure OpenAI Vision), falling back to text OCR."""
+    use_vllm_vision = os.getenv("USE_VLLM_VISION", "false").strip().lower() in {"1", "true", "yes"} or os.getenv("USE_VLLM", "false").strip().lower() in {"1", "true", "yes"}
+    
+    if use_vllm_vision and os.path.exists(image_path):
+        try:
+            import base64
+            with open(image_path, "rb") as f:
+                img_bytes = f.read()
+            ext = os.path.splitext(image_path)[-1].lower()
+            mime = "image/png" if ext == ".png" else "image/jpeg"
+            base64_image = base64.b64encode(img_bytes).decode("utf-8")
+            data_url = f"data:{mime};base64,{base64_image}"
+
+            url = f"{_VLLM_BASE_URL.rstrip('/')}/chat/completions"
+            headers = {"Content-Type": "application/json"}
+            api_key = os.getenv("VLLM_API_KEY", "EMPTY")
+            if api_key:
+                headers["Authorization"] = f"Bearer {api_key}"
+
+            user_text = (
+                "اقرأ بصرك الصورة المرفقة مباشرة واستخرج كافة بيانات المستند الحكومي المصري بالتفصيل بـ JSON.\n"
+                "صغ ملخصاً عربياً سليماً وواضحاً ومفهوماً (summary) بدون تكرار أخطاء أو تشويش نصوص الـ OCR."
+            )
+
+            payload: dict[str, Any] = {
+                "model": os.getenv("VLLM_MODEL") or _VLLM_MODEL,
+                "messages": [
+                    {"role": "system", "content": SYSTEM_PROMPT},
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": user_text},
+                            {"type": "image_url", "image_url": {"url": data_url}}
+                        ]
+                    }
+                ],
+                "max_tokens": 4096,
+                "response_format": {"type": "json_object"}
+            }
+            res = requests.post(url, headers=headers, json=payload, timeout=90)
+            res.raise_for_status()
+            data = res.json()
+            raw = data.get("choices", [{}])[0].get("message", {}).get("content", "{}")
+            parsed = _parse_json_payload(raw)
+            result = dict(_coerce_result(parsed, ocr_text))
+            if result.get("doc_type") and result["doc_type"] != "unknown":
+                print(f"[AI SERVICE Vision] Successfully analyzed photo directly via vLLM Vision!")
+                return result
+        except Exception as exc:
+            print(f"[AI SERVICE Vision] Direct vLLM vision issue ({exc}); falling back...")
+
     if _AZURE_OPENAI_KEY and os.path.exists(image_path):
         try:
             import base64
@@ -828,9 +924,10 @@ def analyze_document_image(image_path: str, ocr_text: str = "") -> dict[str, Any
                 "api-key": _AZURE_OPENAI_KEY,
                 "Content-Type": "application/json",
             }
-            user_text = "اقرأ واستخرج كافة بيانات هذا المستند الحكومي المصري بالتفصيل بـ JSON."
-            if ocr_text:
-                user_text += f"\nنص الـ OCR المساعد:\n{ocr_text}"
+            user_text = (
+                "اقرأ بصرك الصورة المرفقة مباشرة واستخرج كافة بيانات المستند الحكومي المصري بالتفصيل بـ JSON.\n"
+                "صغ ملخصاً عربياً سليماً وواضحاً ومفهوماً (summary) بدون تكرار أخطاء أو تشويش نصوص الـ OCR."
+            )
 
             payload: dict[str, Any] = {
                 "model": _AZURE_OPENAI_DEPLOYMENT,
@@ -847,7 +944,7 @@ def analyze_document_image(image_path: str, ocr_text: str = "") -> dict[str, Any
                 "max_completion_tokens": 4096,
                 "response_format": {"type": "json_object"}
             }
-            res = requests.post(url, headers=headers, json=payload, timeout=30)
+            res = requests.post(url, headers=headers, json=payload, timeout=90)
             res.raise_for_status()
             data = res.json()
             raw = data.get("choices", [{}])[0].get("message", {}).get("content", "{}")

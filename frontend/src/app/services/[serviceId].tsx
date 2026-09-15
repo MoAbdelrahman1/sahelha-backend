@@ -48,6 +48,47 @@ export default function ServiceApplicationScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [submittedRef, setSubmittedRef] = useState<string | null>(null);
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
+  const [recordingField, setRecordingField] = useState<string | null>(null);
+
+  const handleStartVoiceForField = (field: FormField) => {
+    if (typeof window !== "undefined" && ("SpeechRecognition" in window || "webkitSpeechRecognition" in window)) {
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      const recognition = new SpeechRecognition();
+      recognition.lang = "ar-EG";
+      recognition.interimResults = false;
+      recognition.maxAlternatives = 1;
+
+      setRecordingField(field.id);
+
+      recognition.onresult = (event: any) => {
+        const transcript = (event.results?.[0]?.[0]?.transcript || "").trim();
+        let finalVal = transcript;
+        if (field.field_type === "confirmation") {
+          if (transcript.includes("لا") || transcript.includes("غلط") || transcript.includes("مش")) {
+            finalVal = "لا";
+          } else {
+            finalVal = "نعم";
+          }
+        }
+        setAnswers((prev) => ({ ...prev, [field.id]: finalVal }));
+        setConfirmedFields((prev) => ({ ...prev, [field.id]: true }));
+        setEditingField(null);
+        setRecordingField(null);
+      };
+
+      recognition.onerror = () => {
+        setRecordingField(null);
+      };
+
+      recognition.onend = () => {
+        setRecordingField(null);
+      };
+
+      recognition.start();
+    } else {
+      alert("التسجيل الصوتي يدعم متصفح Chrome أو Edge");
+    }
+  };
 
   // Load service schema and pre-fill from scanned National ID document
   useEffect(() => {
@@ -284,7 +325,25 @@ export default function ServiceApplicationScreen() {
                 </Text>
               )}
 
-              <View style={{ flexDirection: "row-reverse", gap: 10, marginTop: 4 }}>
+              <View style={{ flexDirection: "row-reverse", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
+                <Pressable
+                  onPress={() => handleStartVoiceForField(field)}
+                  style={{
+                    flexDirection: "row-reverse",
+                    alignItems: "center",
+                    gap: 6,
+                    backgroundColor: recordingField === field.id ? "#DC2626" : "#1D4ED8",
+                    paddingHorizontal: 14,
+                    paddingVertical: 8,
+                    borderRadius: 8,
+                  }}
+                >
+                  <Ionicons name="mic" size={16} color="#FFFFFF" />
+                  <Text style={{ fontFamily: "IBMPlexSansArabic_700Bold", fontSize: 13, color: "#FFFFFF" }}>
+                    {recordingField === field.id ? "جارٍ الاستماع… 🎙️" : "تحدث بالإجابة 🎙️"}
+                  </Text>
+                </Pressable>
+
                 <Pressable
                   onPress={() => toggleConfirm(field.id)}
                   style={{
