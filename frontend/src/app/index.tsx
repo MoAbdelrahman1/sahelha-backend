@@ -12,7 +12,9 @@ import { DigitalServicesCatalog } from "@/features/landing/components/DigitalSer
 import { DigitalEgyptFooter } from "@/features/landing/components/DigitalEgyptFooter";
 import { FloatingVoiceFab } from "@/features/landing/components/FloatingVoiceFab";
 
-function LandingContent() {
+// Shared landing page content — used by both src/app/index.tsx (root URL "/")
+// and src/app/(tabs)/index.tsx (الرئيسية tab).
+export function LandingContent() {
   const scrollViewRef = useRef<ScrollView>(null);
   const { colors } = useTheme();
 
@@ -40,22 +42,15 @@ function LandingContent() {
 
   return (
     <View style={[styles.screen, { backgroundColor: colors.bgScreen }]}>
-      {/* Top Be My Eyes Color Mode Switcher Bar */}
       <ColorModeSwitcherBar />
-
-      {/* Header */}
       <Header onServicesPress={scrollToCatalog} />
-
-      {/* Announcement Ribbon */}
       <AnnouncementBanner />
-
       <ScrollView
         ref={scrollViewRef}
         style={[styles.scrollView, { backgroundColor: colors.bgScreen }]}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* Asymmetrical Hero */}
         <Hero
           searchQuery={searchQuery}
           onSearchChange={setSearchQuery}
@@ -63,22 +58,14 @@ function LandingContent() {
           onSelectCategory={handleSelectCategory}
           onSearchSubmit={handleSearchSubmit}
         />
-
-        {/* Dual Action Cards */}
         <ActionCards onBrowseServices={scrollToCatalog} />
-
-        {/* Digital Government Services Catalog */}
         <DigitalServicesCatalog
           searchQuery={searchQuery}
           selectedCategory={selectedCategory}
           onSelectCategory={setSelectedCategory}
         />
-
-        {/* Official Egyptian Portal Footer */}
         <DigitalEgyptFooter />
       </ScrollView>
-
-      {/* Floating AI Voice Assistant Action Button */}
       <FloatingVoiceFab />
     </View>
   );
@@ -93,12 +80,8 @@ export default function LandingScreen() {
 }
 
 const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-  },
-  scrollView: {
-    flex: 1,
-  },
+  screen: { flex: 1 },
+  scrollView: { flex: 1 },
   scrollContent: {
     paddingBottom: Platform.OS === "ios" ? 40 : 24,
   },

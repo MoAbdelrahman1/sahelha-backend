@@ -148,18 +148,19 @@ export default function ServicesScreen() {
           </Pressable>
 
           {/* Start Application Voice Wizard Button */}
-          <Link href={`/services/${item.id}`} asChild>
-            <Pressable
-              onPress={() => stopGlobalTts()}
-              accessibilityRole="button"
-              accessibilityLabel={`بدء التقديم الصوتي على خدمة ${item.title}`}
-              className="flex-1 h-12 flex-row-reverse items-center justify-center gap-2 rounded-xl bg-brandBlueDeep active:opacity-85 shadow-sm"
-            >
-              <Ionicons name="mic-outline" size={18} color="#FFFFFF" />
-              <Text className="text-sm font-black text-white">التقديم بالصوت</Text>
-              <Ionicons name="chevron-back" size={16} color="#FFFFFF" />
-            </Pressable>
-          </Link>
+          <Pressable
+            onPress={() => {
+              stopGlobalTts();
+              router.push(`/(tabs)/services/${item.id}`);
+            }}
+            accessibilityRole="button"
+            accessibilityLabel={`بدء التقديم الصوتي على خدمة ${item.title}`}
+            className="flex-1 h-12 flex-row-reverse items-center justify-center gap-2 rounded-xl bg-brandBlueDeep active:opacity-85 shadow-sm"
+          >
+            <Ionicons name="mic-outline" size={18} color="#FFFFFF" />
+            <Text className="text-sm font-black text-white">التقديم بالصوت</Text>
+            <Ionicons name="chevron-back" size={16} color="#FFFFFF" />
+          </Pressable>
         </View>
       </View>
     );

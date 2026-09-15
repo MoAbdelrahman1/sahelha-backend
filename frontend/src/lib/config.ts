@@ -8,12 +8,10 @@
 // base URL or a timeout; never put API keys or credentials behind one.
 //
 // See .env.example at the project root for the full list of keys.
-console.log('API_BASE_URL =>', JSON.stringify(process.env.EXPO_PUBLIC_API_BASE_URL));
-
-export const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL ?? "https://REPLACE_ME";
+export const API_BASE_URL = (process.env.EXPO_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000").trim();
 
 // Per-request timeout, in ms. A hanging request rejects instead of freezing the UI.
-export const API_TIMEOUT_MS = Number(process.env.EXPO_PUBLIC_API_TIMEOUT_MS ?? 180000);
+export const API_TIMEOUT_MS = Number(process.env.EXPO_PUBLIC_API_TIMEOUT_MS ?? 15000);
 
 // Max automatic retries for transient failures (network error / timeout / 5xx).
 export const API_MAX_RETRIES = Number(process.env.EXPO_PUBLIC_API_MAX_RETRIES ?? 3);

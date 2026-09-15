@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Pressable, StyleSheet, Text, View, Modal } from "react-native";
+import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useTheme } from "@/features/theme/ThemeContext";
@@ -13,7 +13,15 @@ export const Header = ({ onServicesPress }: HeaderProps) => {
   const router = useRouter();
   const { colors } = useTheme();
   const { user, isLoggedIn, logoutUser } = useAuth();
-  const [showMenu, setShowMenu] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+
+  const handleLogout = async () => {
+    setIsUserMenuOpen(false);
+    setIsMenuOpen(false);
+    await logoutUser();
+    router.replace("/");
+  };
 
   return (
     <View
@@ -82,7 +90,7 @@ export const Header = ({ onServicesPress }: HeaderProps) => {
           <Pressable
             onPress={() => router.push("/")}
             accessibilityRole="link"
-            accessibilityLabel="الصفحة الرئيسية"
+            accessibilityLabel="الرئيسية"
             style={({ pressed }) => [
               styles.navLink,
               pressed && styles.pressedState,
@@ -134,148 +142,57 @@ export const Header = ({ onServicesPress }: HeaderProps) => {
               المساعد الصوتي
             </Text>
           </Pressable>
-
-          <Pressable
-            onPress={() => router.push("/(tabs)/applications")}
-            accessibilityRole="link"
-            accessibilityLabel="طلباتي والمتابعة"
-            style={({ pressed }) => [
-              styles.navLink,
-              pressed && styles.pressedState,
-            ]}
-          >
-            <Text style={[styles.navLinkText, { color: colors.textPrimary }]}>
-              طلباتي
-            </Text>
-          </Pressable>
-
-          <Pressable
-            onPress={() => router.push("/(tabs)/archive")}
-            accessibilityRole="link"
-            accessibilityLabel="مستنداتي الممسوحة"
-            style={({ pressed }) => [
-              styles.navLink,
-              pressed && styles.pressedState,
-            ]}
-          >
-            <Text style={[styles.navLinkText, { color: colors.textPrimary }]}>
-              مستنداتي
-            </Text>
-          </Pressable>
         </View>
 
-        {/* Left Section: Login / User Account */}
+        {/* Left Section: Login / User Profile & App Entry */}
         <View style={styles.leftGroup}>
-          <Pressable
-            onPress={() => {
-              if (isLoggedIn) {
-                setShowMenu((v) => !v);
-              } else {
-                router.push("/login");
-              }
-            }}
-            accessibilityRole="button"
-            accessibilityLabel={isLoggedIn ? `حساب ${user?.full_name}` : "تسجيل الدخول إلى حسابك"}
-            style={({ pressed }) => [
-              styles.loginButton,
-              {
-                backgroundColor: colors.btnPrimaryBg,
-                borderColor: colors.border,
-                borderWidth: colors.borderWidth,
-              },
-              pressed && styles.pressedState,
-            ]}
-          >
-            <Ionicons
-              name={isLoggedIn ? "person-circle" : "person-circle-outline"}
-              size={22}
-              color={colors.btnPrimaryText}
-            />
-            <Text
-              numberOfLines={1}
-              style={[styles.loginButtonText, { color: colors.btnPrimaryText, maxWidth: 140 }]}
+          {isLoggedIn && user ? (
+            <Pressable
+              onPress={() => setIsUserMenuOpen(true)}
+              accessibilityRole="button"
+              accessibilityLabel={`حساب ${user.full_name}`}
+              style={({ pressed }) => [
+                styles.loginButton,
+                {
+                  backgroundColor: colors.btnPrimaryBg,
+                  borderColor: colors.border,
+                  borderWidth: colors.borderWidth,
+                },
+                pressed && styles.pressedState,
+              ]}
             >
-              {isLoggedIn ? (user?.full_name || "حسابي") : "تسجيل الدخول"}
-            </Text>
-          </Pressable>
-
-          {showMenu && isLoggedIn && (
-            <View
-              style={{
-                position: "absolute",
-                top: 52,
-                left: 0,
-                backgroundColor: colors.bgSurface,
-                borderColor: colors.border,
-                borderWidth: 2,
-                borderRadius: 12,
-                padding: 8,
-                minWidth: 180,
-                shadowColor: "#000",
-                shadowOffset: { width: 0, height: 4 },
-                shadowOpacity: 0.15,
-                shadowRadius: 8,
-                elevation: 6,
-                zIndex: 999,
-              }}
-            >
-              <Text
-                style={{
-                  fontFamily: "IBMPlexSansArabic_700Bold",
-                  fontSize: 14,
-                  color: colors.textPrimary,
-                  paddingHorizontal: 10,
-                  paddingVertical: 6,
-                  borderBottomWidth: 1,
-                  borderBottomColor: colors.border,
-                  textAlign: "right",
-                }}
-              >
-                {user?.full_name}
+              <Ionicons name="person-circle" size={22} color={colors.btnPrimaryText} />
+              <Text style={[styles.loginButtonText, { color: colors.btnPrimaryText }]} numberOfLines={1}>
+                {user.full_name || user.email}
               </Text>
-
-              <Pressable
-                onPress={() => {
-                  setShowMenu(false);
-                  router.push("/(tabs)/applications");
-                }}
-                style={{ paddingVertical: 8, paddingHorizontal: 10 }}
-              >
-                <Text style={{ fontFamily: "IBMPlexSansArabic_700Bold", fontSize: 13, color: colors.textPrimary, textAlign: "right" }}>
-                  📋 طلباتي ومتابعة الخدمات
-                </Text>
-              </Pressable>
-
-              <Pressable
-                onPress={() => {
-                  setShowMenu(false);
-                  router.push("/(tabs)/archive");
-                }}
-                style={{ paddingVertical: 8, paddingHorizontal: 10 }}
-              >
-                <Text style={{ fontFamily: "IBMPlexSansArabic_500Medium", fontSize: 13, color: colors.textPrimary, textAlign: "right" }}>
-                  📁 مستنداتي الممسوحة
-                </Text>
-              </Pressable>
-
-              <Pressable
-                onPress={async () => {
-                  setShowMenu(false);
-                  await logoutUser();
-                }}
-                style={{ paddingVertical: 8, paddingHorizontal: 10 }}
-              >
-                <Text style={{ fontFamily: "IBMPlexSansArabic_700Bold", fontSize: 13, color: "#DC2626", textAlign: "right" }}>
-                  🚪 تسجيل الخروج
-                </Text>
-              </Pressable>
-            </View>
+              <Ionicons name="chevron-down" size={16} color={colors.btnPrimaryText} />
+            </Pressable>
+          ) : (
+            <Pressable
+              onPress={() => router.push("/login")}
+              accessibilityRole="button"
+              accessibilityLabel="تسجيل الدخول إلى حسابك"
+              style={({ pressed }) => [
+                styles.loginButton,
+                {
+                  backgroundColor: colors.btnPrimaryBg,
+                  borderColor: colors.border,
+                  borderWidth: colors.borderWidth,
+                },
+                pressed && styles.pressedState,
+              ]}
+            >
+              <Ionicons name="person-circle-outline" size={22} color={colors.btnPrimaryText} />
+              <Text style={[styles.loginButtonText, { color: colors.btnPrimaryText }]}>
+                تسجيل الدخول
+              </Text>
+            </Pressable>
           )}
 
           <Pressable
-            onPress={() => router.push("/(tabs)")}
+            onPress={() => setIsMenuOpen(true)}
             accessibilityRole="button"
-            accessibilityLabel="القائمة الكاملة"
+            accessibilityLabel="فتح القائمة الرئيسية"
             style={({ pressed }) => [
               styles.menuButton,
               {
@@ -290,6 +207,246 @@ export const Header = ({ onServicesPress }: HeaderProps) => {
           </Pressable>
         </View>
       </View>
+
+      {/* User Account Dropdown Modal */}
+      <Modal
+        visible={isUserMenuOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setIsUserMenuOpen(false)}
+      >
+        <Pressable style={styles.modalOverlay} onPress={() => setIsUserMenuOpen(false)}>
+          <View
+            style={[
+              styles.drawerContent,
+              {
+                backgroundColor: colors.bgSurface,
+                borderColor: colors.border,
+                borderWidth: colors.borderWidth,
+              },
+            ]}
+          >
+            <View style={styles.drawerHeader}>
+              <View style={{ alignItems: "flex-end" }}>
+                <Text style={[styles.drawerTitle, { color: colors.textPrimary }]}>
+                  {user?.full_name || "الحساب الشخصي"}
+                </Text>
+                <Text style={{ fontSize: 13, color: colors.textSecondary }}>
+                  {user?.email}
+                </Text>
+              </View>
+              <Pressable
+                onPress={() => setIsUserMenuOpen(false)}
+                accessibilityRole="button"
+                accessibilityLabel="إغلاق القائمة"
+                style={styles.closeDrawerBtn}
+              >
+                <Ionicons name="close" size={24} color={colors.textPrimary} />
+              </Pressable>
+            </View>
+
+            <Pressable
+              style={({ pressed }) => [
+                styles.drawerItem,
+                { borderBottomColor: colors.border, borderBottomWidth: 1 },
+                pressed && styles.pressedState,
+              ]}
+              onPress={() => {
+                setIsUserMenuOpen(false);
+                router.push("/");
+              }}
+            >
+              <Ionicons name="home-outline" size={22} color={colors.textPrimary} />
+              <Text style={[styles.drawerItemText, { color: colors.textPrimary }]}>
+                الصفحة الرئيسية
+              </Text>
+            </Pressable>
+
+            <Pressable
+              style={({ pressed }) => [
+                styles.drawerItem,
+                { borderBottomColor: colors.border, borderBottomWidth: 1 },
+                pressed && styles.pressedState,
+              ]}
+              onPress={() => {
+                setIsUserMenuOpen(false);
+                router.push("/(tabs)/scan");
+              }}
+            >
+              <Ionicons name="folder-open-outline" size={22} color={colors.textPrimary} />
+              <Text style={[styles.drawerItemText, { color: colors.textPrimary }]}>
+                مستنداتي الممسوحة ضوئياً
+              </Text>
+            </Pressable>
+
+            <Pressable
+              style={({ pressed }) => [
+                styles.drawerItem,
+                { borderBottomColor: colors.border, borderBottomWidth: 1 },
+                pressed && styles.pressedState,
+              ]}
+              onPress={() => {
+                setIsUserMenuOpen(false);
+                if (onServicesPress) onServicesPress();
+                else router.push("/(tabs)/services");
+              }}
+            >
+              <Ionicons name="grid-outline" size={22} color={colors.textPrimary} />
+              <Text style={[styles.drawerItemText, { color: colors.textPrimary }]}>
+                تصفح الخدمات
+              </Text>
+            </Pressable>
+
+            <Pressable
+              style={({ pressed }) => [
+                styles.drawerItem,
+                pressed && styles.pressedState,
+              ]}
+              onPress={handleLogout}
+            >
+              <Ionicons name="log-out-outline" size={22} color="#B3261E" />
+              <Text style={[styles.drawerItemText, { color: "#B3261E" }]}>
+                تسجيل الخروج
+              </Text>
+            </Pressable>
+          </View>
+        </Pressable>
+      </Modal>
+
+      {/* Accessible Quick Navigation Modal Drawer */}
+      <Modal
+        visible={isMenuOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setIsMenuOpen(false)}
+      >
+        <Pressable style={styles.modalOverlay} onPress={() => setIsMenuOpen(false)}>
+          <View
+            style={[
+              styles.drawerContent,
+              {
+                backgroundColor: colors.bgSurface,
+                borderColor: colors.border,
+                borderWidth: colors.borderWidth,
+              },
+            ]}
+          >
+            <View style={styles.drawerHeader}>
+              <Text style={[styles.drawerTitle, { color: colors.textPrimary }]}>
+                قائمة التصفح السريع
+              </Text>
+              <Pressable
+                onPress={() => setIsMenuOpen(false)}
+                accessibilityRole="button"
+                accessibilityLabel="إغلاق القائمة"
+                style={styles.closeDrawerBtn}
+              >
+                <Ionicons name="close" size={24} color={colors.textPrimary} />
+              </Pressable>
+            </View>
+
+            <Pressable
+              style={({ pressed }) => [
+                styles.drawerItem,
+                { borderBottomColor: colors.border, borderBottomWidth: 1 },
+                pressed && styles.pressedState,
+              ]}
+              onPress={() => {
+                setIsMenuOpen(false);
+                router.push("/");
+              }}
+            >
+              <Ionicons name="home-outline" size={22} color={colors.textPrimary} />
+              <Text style={[styles.drawerItemText, { color: colors.textPrimary }]}>
+                الرئيسية
+              </Text>
+            </Pressable>
+
+            <Pressable
+              style={({ pressed }) => [
+                styles.drawerItem,
+                { borderBottomColor: colors.border, borderBottomWidth: 1 },
+                pressed && styles.pressedState,
+              ]}
+              onPress={() => {
+                setIsMenuOpen(false);
+                if (onServicesPress) onServicesPress();
+                else router.push("/(tabs)/services");
+              }}
+            >
+              <Ionicons name="grid-outline" size={22} color={colors.textPrimary} />
+              <Text style={[styles.drawerItemText, { color: colors.textPrimary }]}>
+                تصفح جميع الخدمات الرقمية (18 خدمة)
+              </Text>
+            </Pressable>
+
+            <Pressable
+              style={({ pressed }) => [
+                styles.drawerItem,
+                { borderBottomColor: colors.border, borderBottomWidth: 1 },
+                pressed && styles.pressedState,
+              ]}
+              onPress={() => {
+                setIsMenuOpen(false);
+                router.push("/(tabs)/scan");
+              }}
+            >
+              <Ionicons name="camera-outline" size={22} color={colors.textPrimary} />
+              <Text style={[styles.drawerItemText, { color: colors.textPrimary }]}>
+                مسح بطاقة الرقم القومي والمستندات
+              </Text>
+            </Pressable>
+
+            <Pressable
+              style={({ pressed }) => [
+                styles.drawerItem,
+                { borderBottomColor: colors.border, borderBottomWidth: 1 },
+                pressed && styles.pressedState,
+              ]}
+              onPress={() => {
+                setIsMenuOpen(false);
+                router.push("/(tabs)/chat");
+              }}
+            >
+              <Ionicons name="mic-outline" size={22} color={colors.textPrimary} />
+              <Text style={[styles.drawerItemText, { color: colors.textPrimary }]}>
+                المساعد الصوتي الذكي
+              </Text>
+            </Pressable>
+
+            {isLoggedIn && user ? (
+              <Pressable
+                style={({ pressed }) => [
+                  styles.drawerItem,
+                  pressed && styles.pressedState,
+                ]}
+                onPress={handleLogout}
+              >
+                <Ionicons name="log-out-outline" size={22} color="#B3261E" />
+                <Text style={[styles.drawerItemText, { color: "#B3261E" }]}>
+                  تسجيل الخروج ({user.full_name})
+                </Text>
+              </Pressable>
+            ) : (
+              <Pressable
+                style={({ pressed }) => [
+                  styles.drawerItem,
+                  pressed && styles.pressedState,
+                ]}
+                onPress={() => {
+                  setIsMenuOpen(false);
+                  router.push("/login");
+                }}
+              >
+                <Ionicons name="person-outline" size={22} color={colors.textPrimary} />
+                <Text style={[styles.drawerItemText, { color: colors.textPrimary }]}>
+                  تسجيل الدخول إلى حسابك
+                </Text>
+              </Pressable>
+            )}
+          </View>
+        </Pressable>
+      </Modal>
     </View>
   );
 };
@@ -395,5 +552,52 @@ const styles = StyleSheet.create({
   },
   pressedState: {
     opacity: 0.8,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    justifyContent: "flex-start",
+    alignItems: "flex-start",
+    paddingTop: 60,
+    paddingLeft: 20,
+  },
+  drawerContent: {
+    width: 320,
+    maxWidth: "90%",
+    borderRadius: 12,
+    padding: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    elevation: 10,
+  },
+  drawerHeader: {
+    flexDirection: "row-reverse",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 16,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#CBD5E1",
+  },
+  drawerTitle: {
+    fontSize: 18,
+    fontWeight: "800",
+  },
+  closeDrawerBtn: {
+    padding: 4,
+  },
+  drawerItem: {
+    flexDirection: "row-reverse",
+    alignItems: "center",
+    gap: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 8,
+  },
+  drawerItemText: {
+    fontSize: 16,
+    fontWeight: "700",
+    textAlign: "right",
   },
 });

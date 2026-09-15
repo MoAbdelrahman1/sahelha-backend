@@ -1,110 +1,77 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import React, { createContext, useContext, useEffect, useState } from "react";
+import { AuthUser, getMe, login as apiLogin } from "@/features/auth/api";
 import { clearTokens, getAccessToken } from "@/lib/api/tokenStore";
-import { getMe, type AuthUser } from "@/features/auth/api";
 
-type AuthState = {
+type AuthContextType = {
   user: AuthUser | null;
   isLoggedIn: boolean;
   loading: boolean;
-  loginUser: (user: AuthUser) => void;
+  loginUser: (email: string, pass: string) => Promise<AuthUser>;
   logoutUser: () => Promise<void>;
   refreshUser: () => Promise<void>;
 };
 
-const AuthContext = createContext<AuthState | null>(null);
+const AuthContext = createContext<AuthContextType>({
+  user: null,
+  isLoggedIn: false,
+  loading: true,
+  loginUser: async () => { throw new Error("AuthProvider not mounted"); },
+  logoutUser: async () => {},
+  refreshUser: async () => {},
+});
 
-const USER_STORAGE_KEY = "sahelha_auth_user_v1";
+export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
 
-function loadCachedUser(): AuthUser | null {
-  try {
-    if (typeof window !== "undefined" && window.localStorage) {
-      const saved = window.localStorage.getItem(USER_STORAGE_KEY);
-      if (saved) {
-        return JSON.parse(saved);
-      }
-    }
-  } catch {
-    // Ignore read errors
-  }
-  return null;
-}
-
-function saveCachedUser(user: AuthUser | null) {
-  try {
-    if (typeof window !== "undefined" && window.localStorage) {
-      if (user) {
-        window.localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(user));
-      } else {
-        window.localStorage.removeItem(USER_STORAGE_KEY);
-      }
-    }
-  } catch {
-    // Ignore write errors
-  }
-}
-
-export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<AuthUser | null>(() => loadCachedUser());
-  const [loading, setLoading] = useState(true);
-
-  const refreshUser = useCallback(async () => {
-    setLoading(true);
+  const refreshUser = async () => {
     try {
       const token = await getAccessToken();
       if (!token) {
         setUser(null);
-        saveCachedUser(null);
+        setLoading(false);
         return;
       }
-      const data = await getMe();
-      setUser(data);
-      saveCachedUser(data);
-    } catch {
-      // If token is invalid or expired
+      const currentUser = await getMe();
+      setUser(currentUser);
+    } catch (err) {
+      console.warn("[AUTH] Error loading current user:", err);
       setUser(null);
-      saveCachedUser(null);
+      await clearTokens();
     } finally {
       setLoading(false);
     }
-  }, []);
+  };
 
   useEffect(() => {
     refreshUser();
-  }, [refreshUser]);
-
-  const loginUser = useCallback((userData: AuthUser) => {
-    setUser(userData);
-    saveCachedUser(userData);
   }, []);
 
-  const logoutUser = useCallback(async () => {
+  const loginUser = async (email: string, pass: string): Promise<AuthUser> => {
+    const res = await apiLogin(email, pass);
+    setUser(res.user);
+    return res.user;
+  };
+
+  const logoutUser = async () => {
     await clearTokens();
     setUser(null);
-    saveCachedUser(null);
-    if (typeof window !== "undefined" && window.localStorage) {
-      window.localStorage.removeItem("sahelha_documents_v1");
-    }
-  }, []);
+  };
 
-  const isLoggedIn = Boolean(user);
-
-  const value = useMemo(
-    () => ({
-      user,
-      isLoggedIn,
-      loading,
-      loginUser,
-      logoutUser,
-      refreshUser,
-    }),
-    [user, isLoggedIn, loading, loginUser, logoutUser, refreshUser]
+  return (
+    <AuthContext.Provider
+      value={{
+        user,
+        isLoggedIn: !!user,
+        loading,
+        loginUser,
+        logoutUser,
+        refreshUser,
+      }}
+    >
+      {children}
+    </AuthContext.Provider>
   );
+};
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
-}
-
-export function useAuth(): AuthState {
-  const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error("useAuth must be used within an AuthProvider");
-  return ctx;
-}
+export const useAuth = () => useContext(AuthContext);

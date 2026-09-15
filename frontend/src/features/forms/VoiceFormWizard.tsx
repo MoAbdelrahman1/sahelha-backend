@@ -145,7 +145,7 @@ export function VoiceFormWizard({ serviceId, onCancel }: VoiceFormWizardProps) {
     }
   };
 
-  // Retry / Re-record current field
+  // Retry / Re-record current field via Voice
   const handleRetryStep = () => {
     tts.stopCurrent();
     setCurrentDraft("");
@@ -154,6 +154,10 @@ export function VoiceFormWizard({ serviceId, onCancel }: VoiceFormWizardProps) {
     if (currentField) {
       tts.speakTextContent(currentField.prompt, `prompt-retry-${currentField.id}`);
     }
+    // Auto-trigger microphone recording for hands-free voice experience
+    setTimeout(() => {
+      handleStartRecording();
+    }, 1200);
   };
 
   // Final Form Submission
