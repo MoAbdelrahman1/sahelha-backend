@@ -635,7 +635,7 @@ def _coerce_result(payload: dict[str, Any], ocr_text: str) -> DocumentAnalysisRe
 
     # ── Deterministic Classification Guardrails ──────────────────────────────
     has_card_cues = any(k in ocr_text for k in ["بطاقة", "تحقيق الشخصية", "شخصية", "تحقيق شخصية"])
-    has_birth_cues = any(k in ocr_text for k in ["صورة قيد", "قيد ميلاد", "اسم المولود", "بيانات المولود", "اسم الأم", "محل الميلاد", "واقعة ميلاد", "شهادة ميلاد"])
+    has_birth_cues = any(k in ocr_text for k in ["صورة قيد", "صورةقيد", "صورةقي", "قيد ميلاد", "قيدالميلاد", "دالميلاد", "اسم المولود", "بيانات المولود", "اسم الأم", "محل الميلاد", "مبلاد", "واقعة ميلاد", "شهادة ميلاد"])
     has_passport_cues = any(k in ocr_text.lower() for k in ["جواز", "passport"])
     has_license_cues = any(k in ocr_text for k in ["رخصة", "قيادة", "تسيير", "وحدة مرور", "إدارة مرور", "جهات_الجيزه", "جهات_القاهرة"])
 
@@ -844,7 +844,7 @@ def analyze_document_image(image_path: str, ocr_text: str = "") -> dict[str, Any
                         ]
                     }
                 ],
-                "max_completion_tokens": 1024,
+                "max_completion_tokens": 4096,
                 "response_format": {"type": "json_object"}
             }
             res = requests.post(url, headers=headers, json=payload, timeout=30)
