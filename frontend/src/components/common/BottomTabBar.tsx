@@ -14,7 +14,7 @@ type TabBarProps = {
 };
 
 const TAB_META: Record<string, { label: string; icon: keyof typeof Ionicons.glyphMap }> = {
-  index: { label: "مستنداتي", icon: "documents-outline" },
+  scan: { label: "مستنداتي", icon: "documents-outline" },
   applications: { label: "طلباتي", icon: "clipboard-outline" },
   archive: { label: "الأرشيف", icon: "archive-outline" },
   reminders: { label: "التذكيرات", icon: "notifications-outline" },
@@ -35,7 +35,7 @@ export function BottomTabBar({ state, navigation }: TabBarProps) {
     if (targetId != null) router.push(`/document/${targetId}/chat`);
   };
 
-  const renderTab = (routeName: "settings" | "reminders" | "index" | "archive" | "applications") => {
+  const renderTab = (routeName: "settings" | "reminders" | "scan" | "archive" | "applications") => {
     const meta = TAB_META[routeName];
     const route = state.routes.find((r) => r.name === routeName);
     const focused = activeName === routeName;
@@ -68,7 +68,7 @@ export function BottomTabBar({ state, navigation }: TabBarProps) {
       }}
     >
       {renderTab("archive")}
-      {renderTab("index")}
+      {renderTab("scan")}
 
       <Pressable
         onPress={openChatGlobal}
