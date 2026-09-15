@@ -272,8 +272,7 @@ def _azure_openai_chat_completion(
     payload: dict[str, Any] = {
         "model": _AZURE_OPENAI_DEPLOYMENT,
         "messages": messages,
-        "temperature": temperature,
-        "max_tokens": max_tokens,
+        "max_completion_tokens": max_tokens,
     }
     if json_mode:
         payload["response_format"] = {"type": "json_object"}
