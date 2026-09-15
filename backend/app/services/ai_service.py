@@ -204,20 +204,28 @@ def _ollama_chat_completion(
     temperature: float = 0.1,
     max_tokens: int = 1024,
     json_mode: bool = False,
+    images: list[str] | None = None,
 ) -> str:
     """Call a locally-running Ollama server's native chat API.
     Attempts configured _OLLAMA_MODEL first, and falls back to other pulled models if 404.
     """
     preferred_model = os.getenv("OLLAMA_MODEL") or _OLLAMA_MODEL
-    models_to_try = [preferred_model, "qwen2.5:7b-egypt", "qwen2.5:7b", "qwen2.5:3b-egypt-ocr", "qwen2.5:3b"]
+    models_to_try = [preferred_model, "qwen2.5:7b-egypt", "llama3.2-vision", "llava", "qwen2.5:7b", "qwen2.5:3b"]
     seen = set()
     unique_models = [m for m in models_to_try if m and not (m in seen or seen.add(m))]
+
+    formatted_messages = list(messages)
+    if images and formatted_messages:
+        # Attach base64 images payload to the last user message for Ollama Vision models
+        last_msg = dict(formatted_messages[-1])
+        last_msg["images"] = images
+        formatted_messages[-1] = last_msg
 
     last_exc = None
     for model_name in unique_models:
         payload: dict[str, Any] = {
             "model": model_name,
-            "messages": messages,
+            "messages": formatted_messages,
             "stream": False,
             "options": {
                 "temperature": 0.2,
