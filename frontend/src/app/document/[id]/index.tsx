@@ -136,8 +136,16 @@ export default function DocumentDetailScreen() {
           <View style={{ gap: 14 }}>
             {row("نوع المستند", typeLabel)}
             {doc.entities.name ? row("الاسم", doc.entities.name) : null}
-            {doc.entities.address ? row("العنوان / المحافظة", `${doc.entities.address} — ${doc.entities.governorate ?? ""}`) : null}
-            {doc.entities.national_number ? row("الرقم القومي", doc.entities.national_number) : null}
+            {doc.entities.address ? row("العنوان / المحافظة", `${doc.entities.address}${doc.entities.governorate ? ` — ${doc.entities.governorate}` : ""}`) : null}
+            {doc.entities.national_number || doc.entities.doc_number
+              ? row(
+                  doc.doc_type === "national_id" || (doc.entities.doc_number && doc.entities.doc_number.length === 14)
+                    ? "الرقم القومي"
+                    : "رقم المستند",
+                  doc.entities.national_number || doc.entities.doc_number || ""
+                )
+              : null}
+            {doc.entities.issuer ? row("الجهة الحكومية", doc.entities.issuer) : null}
             {doc.dates.length > 0 ? row("تواريخ مذكورة", doc.dates.join("، ")) : null}
             {doc.amounts.length > 0 ? row("المبالغ", doc.amounts.join("، ")) : null}
             {doc.expiry_date ? (

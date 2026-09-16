@@ -1,58 +1,88 @@
-import React from "react";
-import { Platform, ScrollView, View } from "react-native";
-import { useRouter } from "expo-router";
+import React, { useEffect, useRef, useState } from "react";
+import { Platform, ScrollView, StyleSheet, View } from "react-native";
 
+import { stopGlobalTts } from "@/features/voice/useTtsPlayer";
+import { ThemeProvider, useTheme } from "@/features/theme/ThemeContext";
+import { ColorModeSwitcherBar } from "@/features/theme/ColorModeSwitcherBar";
 import { Header } from "@/features/landing/components/Header";
+import { AnnouncementBanner } from "@/features/landing/components/AnnouncementBanner";
 import { Hero } from "@/features/landing/components/Hero";
-import { ProblemSolution } from "@/features/landing/components/ProblemSolution";
-import { Features } from "@/features/landing/components/Features";
-import { HowItWorks } from "@/features/landing/components/HowItWorks";
-import { FAQ } from "@/features/landing/components/FAQ";
-import { FinalCTA } from "@/features/landing/components/FinalCTA";
-import { Footer } from "@/features/landing/components/Footer";
+import { ActionCards } from "@/features/landing/components/ActionCards";
+import { DigitalServicesCatalog } from "@/features/landing/components/DigitalServicesCatalog";
+import { DigitalEgyptFooter } from "@/features/landing/components/DigitalEgyptFooter";
+import { FloatingVoiceFab } from "@/features/landing/components/FloatingVoiceFab";
 
-// This screen is intentionally a thin composition of src/features/landing's
-// section components — see that folder for the actual UI.
-//
-// RTL note: the landing page is hand-mirrored for Arabic reading direction
-// (row-reverse containers + right-aligned text) rather than relying on
-// I18nManager, which is a global native flag and would affect the whole app.
-//
-// Typography note: this app's core users are visually impaired, so every
-// piece of readable text here is bold and at least text-lg (18px) — nothing
-// under that floor — set on near-black `text-ink`, never `text-muted` gray.
-// Font scaling is never disabled, so the OS "larger text" setting still
-// applies on top of these bigger defaults.
+// Shared landing page content — used by both src/app/index.tsx (root URL "/")
+// and src/app/(tabs)/index.tsx (الرئيسية tab).
+export function LandingContent() {
+  const scrollViewRef = useRef<ScrollView>(null);
+  const { colors } = useTheme();
 
-export default function LandingScreen() {
-  const router = useRouter();
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState("");
 
-  // Retarget point: change this route for the header/final-CTA "Get Started"
-  // buttons in one place.
-  const goToApp = () => router.push("/(tabs)");
-  // Retarget point: where the hero's "سجل الآن" CTA sends the user. Goes
-  // through the accessibility-setup onboarding wizard first (its own last
-  // step then routes to /login) rather than straight to /login.
-  const goToLogin = () => router.push("/onboarding");
+  useEffect(() => {
+    return () => {
+      stopGlobalTts();
+    };
+  }, []);
+
+  const scrollToCatalog = () => {
+    scrollViewRef.current?.scrollTo({ y: 440, animated: true });
+  };
+
+  const handleSelectCategory = (cat: string) => {
+    setSelectedCategory(cat);
+    scrollToCatalog();
+  };
+
+  const handleSearchSubmit = () => {
+    scrollToCatalog();
+  };
 
   return (
-    <View className="flex-1 bg-white">
+    <View style={[styles.screen, { backgroundColor: colors.bgScreen }]}>
+      <ColorModeSwitcherBar />
+      <Header onServicesPress={scrollToCatalog} />
+      <AnnouncementBanner />
       <ScrollView
-        className="flex-1"
-        contentContainerStyle={{
-          paddingBottom: Platform.OS === "ios" ? 24 : 16,
-        }}
+        ref={scrollViewRef}
+        style={[styles.scrollView, { backgroundColor: colors.bgScreen }]}
+        contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        <Header onGetStarted={goToApp} />
-        <Hero onRegisterPress={goToLogin} />
-        <ProblemSolution />
-        <Features />
-        <HowItWorks />
-        <FAQ />
-        <FinalCTA onGetStarted={goToApp} />
-        <Footer />
+        <Hero
+          searchQuery={searchQuery}
+          onSearchChange={setSearchQuery}
+          selectedCategory={selectedCategory}
+          onSelectCategory={handleSelectCategory}
+          onSearchSubmit={handleSearchSubmit}
+        />
+        <ActionCards onBrowseServices={scrollToCatalog} />
+        <DigitalServicesCatalog
+          searchQuery={searchQuery}
+          selectedCategory={selectedCategory}
+          onSelectCategory={setSelectedCategory}
+        />
+        <DigitalEgyptFooter />
       </ScrollView>
+      <FloatingVoiceFab />
     </View>
   );
 }
+
+export default function LandingScreen() {
+  return (
+    <ThemeProvider>
+      <LandingContent />
+    </ThemeProvider>
+  );
+}
+
+const styles = StyleSheet.create({
+  screen: { flex: 1 },
+  scrollView: { flex: 1 },
+  scrollContent: {
+    paddingBottom: Platform.OS === "ios" ? 40 : 24,
+  },
+});

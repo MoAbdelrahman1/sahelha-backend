@@ -12,6 +12,8 @@ import { ApiError, toApiError } from "@/lib/api/errors";
 // one row's clip plays at a time, playback only ever starts from an
 // explicit call to `speak()` (never automatically), and failures resolve
 // quietly via the existing ApiError/errors.ts path instead of throwing.
+import { stopGlobalTts } from "@/features/voice/useTtsPlayer";
+
 export function useTtsPlayer(options?: { onError?: (messageAr: string) => void }) {
   const [speakingId, setSpeakingId] = useState<string | null>(null);
   const playerRef = useRef<AudioPlayer | null>(null);
@@ -21,6 +23,7 @@ export function useTtsPlayer(options?: { onError?: (messageAr: string) => void }
 
   const releasePlayer = useCallback(() => {
     generationRef.current += 1;
+    stopGlobalTts();
     if (playerRef.current) {
       playerRef.current.pause();
       playerRef.current.remove();

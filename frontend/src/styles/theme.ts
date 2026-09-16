@@ -1,63 +1,27 @@
-// Design tokens extracted from the Sahelha Design canvas mockup, matching
-// backend/SAHELHA_DESIGN_BRIEF.md §3/§5 (accessible, RTL, voice-first palette).
-// Every screen reads colors from `palette(highContrast)` rather than hardcoding
-// hex values, so the whole app flips consistently with one boolean.
-
-export type Palette = {
-  pageBg: string;
-  ink: string;
-  secondary: string;
-  surface: string;
-  border: string;
-  primaryBg: string;
-  primaryFg: string;
-  toastBg: string;
-  toastFg: string;
-  expiryFg: string;
-  expiryBg: string;
-  statusFg: (statusColorLight: string) => string;
-};
-
-export function palette(highContrast: boolean): Palette {
-  return highContrast
-    ? {
-        pageBg: "#000000",
-        ink: "#FFFFFF",
-        secondary: "#E4E4E4",
-        surface: "#000000",
-        border: "#FFFFFF",
-        primaryBg: "#FFFFFF",
-        primaryFg: "#000000",
-        toastBg: "#FFFFFF",
-        toastFg: "#000000",
-        expiryFg: "#000000",
-        expiryBg: "#FFD400",
-        statusFg: () => "#FFFFFF",
-      }
-    : {
-        pageBg: "#FFFFFF",
-        ink: "#0E0E14",
-        secondary: "#5B5B68",
-        surface: "#F7F7FB",
-        border: "#ECECF2",
-        primaryBg: "#33409B",
-        primaryFg: "#FFFFFF",
-        toastBg: "#0E0E14",
-        toastFg: "#FFFFFF",
-        expiryFg: "#8A3B12",
-        expiryBg: "#FCE7D6",
-        statusFg: (statusColorLight) => statusColorLight,
-      };
-}
-
-// Status is never conveyed by color alone — always pair with `symbol` + `label`.
-export const STATUS_META = {
-  done: { label: "المستند جاهز", symbol: "✓", colorLight: "#1F7A4C" },
-  processing: { label: "لسه بيتقرا", symbol: "…", colorLight: "#8A5A00" },
-  failed: { label: "فيه مشكلة في القراية", symbol: "✕", colorLight: "#B3261E" },
+export const colors = {
+  pearl: "#FAF9FD",
+  primary: "#6D28D9",
+  accent: "#4F46E5",
+  onPrimary: "#FFFFFF",
 } as const;
 
-// Per-document-type accent used by the icon tile on DocumentCard.
+export const a11y = {
+  minTapTarget: 56,
+} as const;
+
+export const TAG_LABELS: Record<string, string> = {
+  identity: "هوية شخصية",
+  government: "معاملات حكومية",
+  financial: "إيصالات وفواتير",
+  arabic: "مستندات عربية",
+};
+
+export const STATUS_META: Record<string, { label: string; symbol: string; colorLight: string; colorDark: string }> = {
+  done: { label: "المستند جاهز", symbol: "✓", colorLight: "#1F7A4C", colorDark: "#4ADE80" },
+  processing: { label: "لسه بيتقرا", symbol: "…", colorLight: "#8A5A00", colorDark: "#FACC15" },
+  failed: { label: "فيه مشكلة في القراية", symbol: "✕", colorLight: "#B3261E", colorDark: "#F87171" },
+};
+
 export const DOC_TYPE_ACCENTS: Record<string, { accent: string; accentSoft: string }> = {
   national_id: { accent: "#33409B", accentSoft: "#E7EAFB" },
   passport: { accent: "#6A3E9E", accentSoft: "#F0E7F8" },
@@ -65,6 +29,7 @@ export const DOC_TYPE_ACCENTS: Record<string, { accent: string; accentSoft: stri
   utility_bill: { accent: "#1B6E8C", accentSoft: "#E1F1F5" },
   receipt: { accent: "#1F7A4C", accentSoft: "#E4F3EA" },
   invoice: { accent: "#1F7A4C", accentSoft: "#E4F3EA" },
+  driving_license: { accent: "#1B6E8C", accentSoft: "#E1F1F5" },
   work_permit: { accent: "#33409B", accentSoft: "#E7EAFB" },
   marriage_certificate: { accent: "#6A3E9E", accentSoft: "#F0E7F8" },
   death_certificate: { accent: "#6A3E9E", accentSoft: "#F0E7F8" },
@@ -72,35 +37,39 @@ export const DOC_TYPE_ACCENTS: Record<string, { accent: string; accentSoft: stri
   unknown: { accent: "#33409B", accentSoft: "#E7EAFB" },
 };
 
-export const TAG_LABELS: Record<string, string> = {
-  identity: "هوية",
-  government: "حكومي",
-  financial: "مالي",
-  arabic: "عربي",
-  english: "إنجليزي",
-  expiry: "قرب الانتهاء",
-};
-
-// font-family names as registered by useFonts() in src/app/_layout.tsx
-export const fontFamily = {
-  cairo700: "Cairo_700Bold",
-  cairo800: "Cairo_800ExtraBold",
-  cairo900: "Cairo_900Black",
-  plex400: "IBMPlexSansArabic_400Regular",
-  plex500: "IBMPlexSansArabic_500Medium",
-  plex600: "IBMPlexSansArabic_600SemiBold",
-  plex700: "IBMPlexSansArabic_700Bold",
-} as const;
-
-export const a11y = {
-  minTapTarget: 48,
-  minPrimaryTapTarget: 64,
-} as const;
-
-export const radius = {
-  sm: 10,
-  md: 14,
-  lg: 16,
-  xl: 18,
-  pill: 999,
-} as const;
+export function palette(highContrast: boolean) {
+  if (highContrast) {
+    return {
+      pageBg: "#000000",
+      cardBg: "#111827",
+      surface: "#111827",
+      border: "#FFFFFF",
+      ink: "#FFFFFF",
+      secondary: "#FACC15",
+      primaryBg: "#FACC15",
+      primaryText: "#000000",
+      primaryFg: "#000000",
+      accent: "#FACC15",
+      expiryBg: "#991B1B",
+      expiryFg: "#FFFFFF",
+      toastBg: "#FACC15",
+      toastFg: "#000000",
+    };
+  }
+  return {
+    pageBg: "#FAF9FD",
+    cardBg: "#FFFFFF",
+    surface: "#FFFFFF",
+    border: "#E5E7EB",
+    ink: "#111827",
+    secondary: "#6B7280",
+    primaryBg: "#1D4ED8",
+    primaryText: "#FFFFFF",
+    primaryFg: "#FFFFFF",
+    accent: "#4F46E5",
+    expiryBg: "#FEF2F2",
+    expiryFg: "#991B1B",
+    toastBg: "#1E293B",
+    toastFg: "#FFFFFF",
+  };
+}

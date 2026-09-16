@@ -1,71 +1,102 @@
-import React, { createContext, useCallback, useContext, useMemo, useRef, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 
 import type { Document } from "@/types/document";
+import { DEMO_DOCUMENTS } from "@/features/documents/demoData";
 import { apiClient } from "@/lib/api/client";
-import { getAccessToken } from "@/lib/api/tokenStore";
-import { ApiError, toApiError } from "@/lib/api/errors";
 
-// Backed by the real, authenticated GET /api/documents/ (API_DOCUMENTATION.md
-// §"GET /api/documents/") — most-recent-first, no pagination. Shared by
-// Home/Archive/Document Detail/Chat/BottomTabBar so there's one fetch and one
-// in-memory list, not one per screen.
+// Persistent real document list shared by Home/Archive/Document Detail/Chat, backed
+// by both the server SQLite database (/api/documents/) and local cache.
+// Scanned documents are stored for the registered user in the database.
 
 type DocumentsState = {
   documents: Document[];
-  isLoading: boolean;
-  error: string | null;
-  refetch: () => Promise<void>;
   getDocument: (id: number) => Document | undefined;
-  deleteDocument: (id: number) => Promise<void>;
+  deleteDocument: (id: number) => void;
   addDocument: (doc: Document) => void;
+  refreshDocuments: () => Promise<void>;
 };
 
 const DocumentsContext = createContext<DocumentsState | null>(null);
 
+const STORAGE_KEY = "sahelha_documents_v1";
+
+function loadSavedDocuments(): Document[] {
+  try {
+    if (typeof window !== "undefined" && window.localStorage) {
+      const token = window.localStorage.getItem("sahelha_access_token");
+      const saved = window.localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          return parsed;
+        }
+      }
+      if (token) {
+        return [];
+      }
+    }
+  } catch {
+    // Ignore storage read errors
+  }
+  return [];
+}
+
+function saveDocuments(docs: Document[]) {
+  try {
+    if (typeof window !== "undefined" && window.localStorage) {
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(docs));
+    }
+  } catch {
+    // Ignore storage write errors
+  }
+}
+
 export function DocumentsProvider({ children }: { children: React.ReactNode }) {
-  const [documents, setDocuments] = useState<Document[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  // Guards against overlapping fetches (e.g. tab focus firing while the
-  // provider's own mount fetch is still in flight).
-  const isFetchingRef = useRef(false);
+  const [documents, setDocuments] = useState<Document[]>(() => loadSavedDocuments());
 
-  const refetch = useCallback(async () => {
-    // No point calling an authenticated endpoint before the user is logged
-    // in (landing/onboarding/login/register all mount this provider) — that
-    // 401 would otherwise trip resilience.ts's refresh-then-bounce-to-/login
-    // flow and yank a signed-out visitor off the landing page.
-    const token = await getAccessToken();
-    if (!token || isFetchingRef.current) return;
-
-    isFetchingRef.current = true;
-    setIsLoading(true);
-    setError(null);
+  const refreshDocuments = useCallback(async () => {
     try {
       const { data } = await apiClient.get<Document[]>("/api/documents/");
-      setDocuments(data);
-    } catch (err) {
-      setError((err instanceof ApiError ? err : toApiError(err)).friendlyMessageAr);
-    } finally {
-      isFetchingRef.current = false;
-      setIsLoading(false);
+      if (Array.isArray(data)) {
+        setDocuments(data);
+        saveDocuments(data);
+      }
+    } catch {
+      // Offline fallback
     }
   }, []);
+
+  useEffect(() => {
+    refreshDocuments();
+  }, [refreshDocuments]);
 
   const getDocument = useCallback((id: number) => documents.find((d) => d.id === id), [documents]);
 
   const deleteDocument = useCallback(async (id: number) => {
-    await apiClient.delete(`/api/documents/${id}`);
-    setDocuments((docs) => docs.filter((d) => d.id !== id));
+    setDocuments((docs) => {
+      const updated = docs.filter((d) => d.id !== id);
+      saveDocuments(updated);
+      return updated;
+    });
+    try {
+      await apiClient.delete(`/api/documents/${id}`);
+    } catch {
+      // Ignore delete failure
+    }
   }, []);
 
-  // Used by the scan flow to optimistically drop a newly-uploaded document
-  // into the list without waiting on a full refetch.
-  const addDocument = useCallback((doc: Document) => setDocuments((docs) => [doc, ...docs]), []);
+  const addDocument = useCallback((doc: Document) => {
+    setDocuments((docs) => {
+      const withoutDuplicate = docs.filter((d) => d.id !== doc.id);
+      const updated = [doc, ...withoutDuplicate];
+      saveDocuments(updated);
+      return updated;
+    });
+  }, []);
 
   const value = useMemo(
-    () => ({ documents, isLoading, error, refetch, getDocument, deleteDocument, addDocument }),
-    [documents, isLoading, error, refetch, getDocument, deleteDocument, addDocument]
+    () => ({ documents, getDocument, deleteDocument, addDocument, refreshDocuments }),
+    [documents, getDocument, deleteDocument, addDocument, refreshDocuments]
   );
 
   return <DocumentsContext.Provider value={value}>{children}</DocumentsContext.Provider>;

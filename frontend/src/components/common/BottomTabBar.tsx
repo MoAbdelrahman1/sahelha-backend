@@ -14,17 +14,15 @@ type TabBarProps = {
 };
 
 const TAB_META: Record<string, { label: string; icon: keyof typeof Ionicons.glyphMap }> = {
-  index: { label: "مستنداتي", icon: "documents-outline" },
+  scan: { label: "مستنداتي", icon: "documents-outline" },
+  applications: { label: "طلباتي", icon: "clipboard-outline" },
   archive: { label: "الأرشيف", icon: "archive-outline" },
   reminders: { label: "التذكيرات", icon: "notifications-outline" },
   settings: { label: "الإعدادات", icon: "settings-outline" },
 };
 
-// Custom Tabs `tabBar` renderer: Home · Archive · Reminders · Settings, plus a
-// large floating center mic button (opens the AI assistant scoped to the most
-// recently viewed document) — matches SPRINT_PLAN.md §5's navigation decision
-// and the design mockup's persistent, fixed, always-reachable voice control
-// (SAHELHA_DESIGN_BRIEF.md §5).
+// Custom Tabs `tabBar` renderer: Home · Applications · Archive · Reminders · Settings, plus a
+// large floating center mic button
 export function BottomTabBar({ state, navigation }: TabBarProps) {
   const router = useRouter();
   const { highContrast } = useAppearance();
@@ -37,7 +35,7 @@ export function BottomTabBar({ state, navigation }: TabBarProps) {
     if (targetId != null) router.push(`/document/${targetId}/chat`);
   };
 
-  const renderTab = (routeName: "settings" | "reminders" | "index" | "archive") => {
+  const renderTab = (routeName: "settings" | "reminders" | "scan" | "archive" | "applications") => {
     const meta = TAB_META[routeName];
     const route = state.routes.find((r) => r.name === routeName);
     const focused = activeName === routeName;
@@ -47,11 +45,11 @@ export function BottomTabBar({ state, navigation }: TabBarProps) {
         key={routeName}
         onPress={() => route && navigation.navigate(route.name)}
         accessibilityRole="button"
-        accessibilityLabel={meta.label}
-        style={{ minWidth: 48, minHeight: 48, alignItems: "center", justifyContent: "center", gap: 4 }}
+        accessibilityLabel={meta?.label || routeName}
+        style={{ minWidth: 44, minHeight: 48, alignItems: "center", justifyContent: "center", gap: 3 }}
       >
-        <Ionicons name={meta.icon} size={22} color={color} />
-        <Text style={{ fontFamily: "IBMPlexSansArabic_700Bold", fontSize: 11, color }}>{meta.label}</Text>
+        <Ionicons name={meta?.icon || "ellipse"} size={22} color={color} />
+        <Text style={{ fontFamily: "IBMPlexSansArabic_700Bold", fontSize: 10.5, color }}>{meta?.label || routeName}</Text>
       </Pressable>
     );
   };
@@ -62,28 +60,28 @@ export function BottomTabBar({ state, navigation }: TabBarProps) {
         flexDirection: "row-reverse",
         alignItems: "center",
         justifyContent: "space-around",
-        paddingHorizontal: 8,
+        paddingHorizontal: 4,
         paddingVertical: 10,
         borderTopWidth: 1,
         borderTopColor: c.border,
         backgroundColor: c.pageBg,
       }}
     >
-      {renderTab("settings")}
-      {renderTab("reminders")}
+      {renderTab("archive")}
+      {renderTab("scan")}
 
       <Pressable
         onPress={openChatGlobal}
         accessibilityRole="button"
         accessibilityLabel="اسأل بالصوت عن مستند"
         style={{
-          width: 64,
-          height: 64,
-          borderRadius: 32,
+          width: 58,
+          height: 58,
+          borderRadius: 29,
           backgroundColor: c.primaryBg,
           alignItems: "center",
           justifyContent: "center",
-          marginTop: -24,
+          marginTop: -20,
           shadowColor: "#000",
           shadowOpacity: 0.25,
           shadowRadius: 16,
@@ -91,11 +89,11 @@ export function BottomTabBar({ state, navigation }: TabBarProps) {
           elevation: 6,
         }}
       >
-        <Ionicons name="mic" size={28} color={c.primaryFg} />
+        <Ionicons name="mic" size={26} color="#FFFFFF" />
       </Pressable>
 
-      {renderTab("index")}
-      {renderTab("archive")}
+      {renderTab("applications")}
+      {renderTab("settings")}
     </View>
   );
 }

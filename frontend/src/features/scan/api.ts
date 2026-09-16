@@ -1,7 +1,7 @@
-import { Platform } from "react-native";
-
 import { apiClient } from "@/lib/api/client";
 import { toApiError } from "@/lib/api/errors";
+
+import { Platform } from "react-native";
 
 // Mirrors the confirmed Swagger contract for POST /api/document/analyze —
 // see docs/API.md. `fields` deliberately keeps arbitrary backend-chosen keys
@@ -14,24 +14,51 @@ export type AnalyzeDocumentResponse = {
   document_id: number;
 };
 
+// Shape returned by GET /api/documents — one entry per saved document.
+export type ScannedDocument = {
+  id: number;
+  doc_type: string | null;
+  ai_summary: string;
+  created_at: string;
+  image_url: string | null;
+  status: string;
+};
+
 // POST /api/document/analyze, multipart/form-data with a single "file" part
 // (the captured photo). `text` and `session_id` are optional per the Swagger
 // and are intentionally omitted.
-//
-// NOTE: /api/documents/upload also exists but only returns
-// {doc_id, status, message} with no analysis — using it here would upload
-// the same image twice for no benefit, so this screen calls /analyze only.
-export async function analyzeDocument(photoUri: string): Promise<AnalyzeDocumentResponse> {
+export async function analyzeDocument(
+  photoUri: string,
+  webFile?: File | null
+): Promise<AnalyzeDocumentResponse> {
   const formData = new FormData();
+
   if (Platform.OS === "web") {
-    // The RN `{uri, name, type}` FormData part below only works on
-    // Android/iOS, where the native networking layer streams the file from
-    // that URI. A real browser's FormData just stringifies that object into
-    // a text field, so the backend's `file: UploadFile` sees a string, not a
-    // file part, and 422s. Fetch the picked blob: URI into a real Blob so
-    // this also works under `expo start --web`.
-    const blob = await (await fetch(photoUri)).blob();
-    formData.append("file", blob, "document.jpg");
+    if (webFile) {
+      formData.append("file", webFile, webFile.name || "document.jpg");
+    } else {
+      try {
+        const response = await fetch(photoUri);
+        const blob = await response.blob();
+        formData.append("file", blob, "document.jpg");
+      } catch (err) {
+        console.error("[ANALYZE FETCH BLOB ERROR]", err);
+        if (photoUri.startsWith("data:")) {
+          const arr = photoUri.split(",");
+          const mime = arr[0].match(/:(.*?);/)?.[1] || "image/jpeg";
+          const bstr = atob(arr[1]);
+          let n = bstr.length;
+          const u8arr = new Uint8Array(n);
+          while (n--) {
+            u8arr[n] = bstr.charCodeAt(n);
+          }
+          const blob = new Blob([u8arr], { type: mime });
+          formData.append("file", blob, "document.jpg");
+        } else {
+          formData.append("file", photoUri);
+        }
+      }
+    }
   } else {
     formData.append("file", {
       uri: photoUri,
@@ -41,9 +68,14 @@ export async function analyzeDocument(photoUri: string): Promise<AnalyzeDocument
   }
 
   try {
-    const { data } = await apiClient.post<AnalyzeDocumentResponse>("/api/document/analyze", formData, {
-      headers: { "Content-Type": "multipart/form-data" },
-    });
+    const { data } = await apiClient.post<AnalyzeDocumentResponse>(
+      "/api/document/analyze",
+      formData,
+      {
+        timeout: 120000,
+        headers: Platform.OS === "web" ? undefined : { "Content-Type": "multipart/form-data" },
+      }
+    );
     return data;
   } catch (error) {
     throw toApiError(error);
@@ -64,5 +96,16 @@ export async function speakText(text: string): Promise<SpeakTextResponse> {
     return data;
   } catch (error) {
     throw toApiError(error);
+  }
+}
+
+// GET /api/documents — returns all documents saved by the current user,
+// newest first. Returns [] if the backend is unreachable.
+export async function fetchDocuments(): Promise<ScannedDocument[]> {
+  try {
+    const { data } = await apiClient.get<ScannedDocument[]>("/api/documents");
+    return Array.isArray(data) ? data : [];
+  } catch {
+    return [];
   }
 }

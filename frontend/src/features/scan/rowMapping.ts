@@ -15,36 +15,46 @@ export const SCAN_ROW_KEY_MAP: Record<string, string> = {
   document_type: "doc-type",
   doc_type: "doc-type",
   type: "doc-type",
+  "نوع المستند": "doc-type",
 
   // -> "issuer" (الجهة الحكومية)
   issuer: "issuer",
   government_office: "issuer",
   agency: "issuer",
+  "الجهة الحكومية": "issuer",
 
   // -> "amount" (المبلغ المطلوب)
   amount: "amount",
   amount_due: "amount",
   fee: "amount",
+  "المبلغ المطلوب": "amount",
 
-  // -> "dates" (تاريخ الإصدار وتاريخ الانتهاء) — issue + expiry both land on
-  // this one row (see resultRows.ts, which joins multiple matches).
+  // -> "dates" (تاريخ الإصدار وتاريخ الانتهاء)
   issue_date: "dates",
   issued_at: "dates",
   expiry_date: "dates",
   expires_at: "dates",
   dates: "dates",
+  "تاريخ الإصدار وتاريخ الانتهاء": "dates",
+  "تاريخ الإصدار والانتهاء": "dates",
 
   // -> "doc-number" (رقم المستند)
   document_number: "doc-number",
   doc_number: "doc-number",
   reference_number: "doc-number",
+  national_number: "doc-number",
+  national_id: "doc-number",
+  id_number: "doc-number",
+  "رقم المستند": "doc-number",
+  "الرقم القومي": "doc-number",
 
   // -> "actions" (الإجراءات المطلوبة)
   actions: "actions",
   required_actions: "actions",
   action_required: "actions",
+  "الإجراءات المطلوبة": "actions",
 
-  // -> "next-step" (الخطوة التالية) — the response's dedicated `next_steps`
-  // array (see resultRows.ts) takes priority over this guessed match.
+  // -> "next-step" (الخطوة التالية)
   next_step: "next-step",
+  "الخطوة التالية": "next-step",
 };

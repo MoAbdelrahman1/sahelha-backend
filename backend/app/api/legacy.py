@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import re
 import sqlite3
 from typing import Any
 
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import Response
 
 from app.db import db_connection
@@ -120,13 +121,16 @@ def nearby_offices(lat: float, lng: float, service_id: int | None = None) -> lis
     return offices
 
 
-@router.post("/api/document/analyze", response_model=DocumentAnalyzeResponse)
+from app.api.documents import get_optional_current_user
 
+@router.post("/api/document/analyze", response_model=DocumentAnalyzeResponse)
 async def analyze_document(
     text: str | None = Form(default=None),
     session_id: str | None = Form(default=None),
     file: UploadFile | None = File(default=None),
+    current_user: dict[str, Any] | None = Depends(get_optional_current_user),
 ) -> dict[str, Any]:
+    import asyncio
     import tempfile, os
     from app.services.pipeline import process_document_pipeline
 
@@ -140,35 +144,169 @@ async def analyze_document(
         tmp_path = tmp.name
 
     try:
-        result = process_document_pipeline(tmp_path)
+        result = await asyncio.to_thread(process_document_pipeline, tmp_path)
     finally:
-        os.unlink(tmp_path)
+        if os.path.exists(tmp_path):
+            os.unlink(tmp_path)
 
-    doc_type = result.get("doc_type", "unknown")
-    summary = result.get("summary", "")
-    entities = result.get("entities", {})
 
-    # Convert entities dict to fields list that frontend expects
-    fields = [
-        {"field_key": k, "field_label_ar": k, "field_value": v}
-        for k, v in entities.items() if v
-    ]
+    from app.services.ai_service import _coerce_result
+
+    coerced = _coerce_result(result, result.get("ocr_text", ""))
+
+    doc_type = coerced.get("doc_type", "unknown")
+    summary = coerced.get("summary", "")
+    entities = coerced.get("entities", {})
+    issuer = coerced.get("issuer", "")
+    doc_number = coerced.get("doc_number", "")
+    amount = coerced.get("amount", "")
+    actions = coerced.get("actions", "")
+    issue_date = coerced.get("issue_date")
+    expiry_date = coerced.get("expiry_date")
+
+    doc_type_labels = {
+        "national_id": "بطاقة رقم قومي",
+        "passport": "جواز سفر",
+        "birth_certificate": "شهادة ميلاد",
+        "utility_bill": "فاتورة خدمات (كهرباء / مياه / غاز)",
+        "receipt": "إيصال سداد",
+        "invoice": "فاتورة رسمية",
+        "driving_license": "رخصة قيادة / تسيير",
+        "marriage_certificate": "وثيقة زواج",
+        "death_certificate": "شهادة وفاة",
+        "property_record": "سجل عقاري / ملكية",
+        "government_document": "مستند حكومي رسمي",
+        "unknown": "مستند رسمي",
+    }
+    doc_type_ar = doc_type_labels.get(doc_type, doc_type)
+
+    # Convert all extracted intelligence into fields matching frontend SCAN_ROW_KEY_MAP
+    fields: list[dict[str, str]] = []
+
+    # 1. Document Type
+    fields.append({"field_key": "doc_type", "field_label_ar": "نوع المستند", "field_value": doc_type_ar})
+
+    # 2. Issuer
+    if issuer:
+        fields.append({"field_key": "issuer", "field_label_ar": "الجهة الحكومية", "field_value": str(issuer)})
+
+    # 3. Document Number
+    if doc_type == "national_id":
+        if doc_number and len(str(doc_number)) == 14 and str(doc_number).isdigit():
+            fields.append({"field_key": "doc_number", "field_label_ar": "الرقم القومي", "field_value": str(doc_number)})
+    elif doc_number:
+        fields.append({"field_key": "doc_number", "field_label_ar": "رقم المستند", "field_value": str(doc_number)})
+
+    # 4. Dates & Expiry
+    dates_list = []
+    clean_nid = re.sub(r"\D", "", str(doc_number or ""))
+    derived_birthdate = None
+    if len(clean_nid) == 14 and clean_nid[0] in ("2", "3"):
+        century = 1900 if clean_nid[0] == "2" else 2000
+        yr = century + int(clean_nid[1:3])
+        mo = int(clean_nid[3:5])
+        day = int(clean_nid[5:7])
+        if 1 <= mo <= 12 and 1 <= day <= 31:
+            derived_birthdate = f"{yr:04d}/{mo:02d}/{day:02d}"
+
+    if derived_birthdate and doc_type in ("national_id", "birth_certificate"):
+        dates_list.append(f"ميلاد: {derived_birthdate}")
+    elif issue_date:
+        dates_list.append(f"إصدار: {issue_date}")
+
+    if dates_list:
+        fields.append({"field_key": "dates", "field_label_ar": "تواريخ مذكورة", "field_value": " / ".join(dates_list)})
+    elif coerced.get("dates"):
+        fields.append({"field_key": "dates", "field_label_ar": "تواريخ مذكورة", "field_value": ", ".join(coerced["dates"])})
+
+    if expiry_date:
+        fields.append({"field_key": "expiry_date", "field_label_ar": "تاريخ الانتهاء", "field_value": str(expiry_date)})
+
+    # 5. Amount (only for financial documents)
+    if doc_type not in ("national_id", "driving_license", "passport", "birth_certificate", "marriage_certificate", "death_certificate"):
+        if amount and str(amount).strip() and str(amount) != "لا يوجد":
+            fields.append({"field_key": "amount", "field_label_ar": "المبلغ المطلوب", "field_value": str(amount)})
+
+    # 6. Actions
+    if actions:
+        fields.append({"field_key": "actions", "field_label_ar": "الإجراءات المطلوبة", "field_value": str(actions)})
+
+    # 7. Additional detailed fields (Name, Address, Governorate, Job)
+    from app.services.ocr_service import normalize_text
+    if entities.get("name"):
+        fields.append({"field_key": "name", "field_label_ar": "الاسم الكامل", "field_value": normalize_text(entities["name"])})
+    if entities.get("national_number"):
+        fields.append({"field_key": "national_number", "field_label_ar": "الرقم القومي", "field_value": str(entities["national_number"])})
+    if entities.get("address"):
+        norm_address = normalize_text(entities["address"])
+        fields.append({"field_key": "address", "field_label_ar": "العنوان", "field_value": norm_address})
+    if entities.get("governorate"):
+        fields.append({"field_key": "governorate", "field_label_ar": "المحافظة", "field_value": normalize_text(entities["governorate"])})
+    if entities.get("job"):
+        fields.append({"field_key": "job", "field_label_ar": "المهنة", "field_value": str(entities["job"])})
+
+    resolved_session_id = str(session_id) if (session_id and not hasattr(session_id, "default")) else None
+    user_id = current_user["id"] if current_user else 1
+
+    if doc_type == "national_id":
+        with db_connection() as connection:
+            connection.execute(
+                "DELETE FROM documents WHERE user_id = ? AND (document_type = 'national_id' OR document_type = 'بطاقة رقم قومي')",
+                (user_id,),
+            )
+            connection.commit()
 
     document_id = store_document(
-        session_id,
-        file.filename,
-        file.content_type,
+        resolved_session_id,
+        getattr(file, "filename", None) or "document.jpg",
+        getattr(file, "content_type", None) or "image/jpeg",
         doc_type,
         summary,
         result.get("ocr_text", ""),
         fields,
+        user_id=user_id,
     )
 
+    # Format clean key-value dictionary list for the frontend UI
+    api_fields: list[dict[str, str]] = []
+    if doc_type_ar:
+        api_fields.append({"doc_type": doc_type_ar})
+    if entities.get("name"):
+        api_fields.append({"name": str(entities["name"])})
+    if entities.get("address"):
+        api_fields.append({"address": str(entities["address"])})
+    if entities.get("governorate"):
+        api_fields.append({"governorate": str(entities["governorate"])})
+    if entities.get("national_number") or doc_number:
+        nid_val = entities.get("national_number") or doc_number
+        if len(str(nid_val)) == 14 and str(nid_val).isdigit():
+            api_fields.append({"national_number": str(nid_val)})
+    if issuer:
+        api_fields.append({"issuer": str(issuer)})
+    if doc_type == "national_id":
+        if doc_number and len(str(doc_number)) == 14 and str(doc_number).isdigit():
+            api_fields.append({"doc_number": str(doc_number)})
+    elif doc_number:
+        api_fields.append({"doc_number": str(doc_number)})
+    if dates_list:
+        api_fields.append({"dates": " / ".join(dates_list)})
+    elif coerced.get("dates"):
+        api_fields.append({"dates": ", ".join(coerced["dates"])})
+    if expiry_date:
+        api_fields.append({"expiry_date": str(expiry_date)})
+    if doc_type not in ("national_id", "driving_license", "passport", "birth_certificate", "marriage_certificate", "death_certificate"):
+        if amount and str(amount).strip() and str(amount) != "لا يوجد":
+            api_fields.append({"amount": str(amount)})
+    if actions:
+        api_fields.append({"actions": str(actions)})
+
+    next_steps = result.get("next_steps") or suggested_next_steps(doc_type)
+
     return {
-        "document_type": doc_type,
+        "document_type": doc_type_ar,
         "summary_arabic": summary,
-        "fields": fields,
-        "next_steps": suggested_next_steps(doc_type),
+        "fields": api_fields,
+        "next_steps": next_steps,
         "document_id": document_id,
     }
 

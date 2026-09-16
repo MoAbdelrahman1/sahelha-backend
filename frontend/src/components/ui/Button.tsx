@@ -12,7 +12,7 @@ export const Button = ({ children, variant = "primary", onPress, accessibilityLa
   const base =
     "min-h-[56px] rounded-full px-8 py-4 items-center justify-center active:opacity-80";
   const styles = {
-    primary: "bg-primary",
+    primary: "bg-brandBlueDeep",
     secondary: "bg-white border-2 border-line",
     dark: "bg-white/15 border-2 border-white/20",
   };

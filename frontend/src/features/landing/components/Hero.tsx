@@ -1,150 +1,513 @@
-import React from "react";
-import { Text, View, useWindowDimensions } from "react-native";
+import React, { useState } from "react";
+import {
+  ActivityIndicator,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 
-import { Button } from "@/components/ui/Button";
-import { Container, Highlight, Pill, Section } from "./primitives";
+import { useAudioRecorderHook } from "@/features/voice/useAudioRecorder";
+import { transcribeAudio } from "@/features/voice/api";
+import { useTtsPlayer } from "@/features/voice/useTtsPlayer";
+import { useTheme } from "@/features/theme/ThemeContext";
 
-// A small mock of the real Document Detail screen (see
-// src/app/document/[id]/index.tsx) — not a generic "dashboard" widget. Shows
-// exactly what the product actually produces: a plain-Arabic summary and two
-// extracted fields, so the hero visual is a truthful preview, not marketing
-// filler.
-const HeroMockCard = () => {
-  return (
-    <View className="w-full max-w-[320px] rounded-card bg-white p-4 shadow-sm">
-      <View className="rounded-[20px] bg-soft p-4">
-        <View className="mb-4 flex-row-reverse items-center justify-between">
-          <Text className="text-right font-cairoExtraBold text-base text-ink">بطاقة الرقم القومي</Text>
-          <View className="rounded-full bg-primary px-4 py-2">
-            <Text className="font-plexBold text-sm text-white">✓ جاهز</Text>
-          </View>
-        </View>
-        <View className="gap-3">
-          <View className="flex-row-reverse justify-between">
-            <Text className="font-plexBold text-sm text-secondary">الاسم</Text>
-            <Text className="font-plexSemiBold text-sm text-ink">محمد أحمد</Text>
-          </View>
-          <View className="flex-row-reverse justify-between">
-            <Text className="font-plexBold text-sm text-secondary">تاريخ الانتهاء</Text>
-            <Text className="font-plexSemiBold text-sm text-ink">٢٠٢٧/٠١/٠١</Text>
-          </View>
-          <View className="flex-row-reverse justify-between">
-            <Text className="font-plexBold text-sm text-secondary">التذكير</Text>
-            <Text className="font-plexSemiBold text-sm text-ink">✓ متضبط تلقائيًا</Text>
-          </View>
-        </View>
-      </View>
-    </View>
-  );
+type HeroProps = {
+  searchQuery: string;
+  onSearchChange: (text: string) => void;
+  selectedCategory: string;
+  onSelectCategory: (cat: string) => void;
+  onSearchSubmit?: () => void;
 };
 
-const FloatingStat = ({
-  label,
-  value,
-  style,
-}: {
-  label: string;
-  value: string;
-  style?: object;
-}) => {
-  return (
-    <View className="absolute rounded-2xl bg-white p-4 shadow-sm" style={style}>
-      <Text className="text-right font-cairoExtraBold text-xl text-ink">{value}</Text>
-      <Text className="mt-1 max-w-[130px] text-right font-plexSemiBold text-sm text-secondary">{label}</Text>
-    </View>
-  );
-};
-
-// Real figures from the pitch deck / SAHELHA_DESIGN_BRIEF.md §1 — not
-// invented marketing stats.
-const STATS = [
-  { label: "شخص حول العالم لديهم إعاقة بصرية", value: "+285M" },
-  { label: "ناطق بالعربية بلا حل مخصص ليه", value: "+45M" },
-  { label: "كلمة محتاج تقراها بنفسك", value: "0" },
+export const POPULAR_TAGS = [
+  { id: "all", label: "الكل" },
+  { id: "الأحوال", label: "الأحوال المدنية" },
+  { id: "مركباتي", label: "مركباتي" },
+  { id: "رخص", label: "رخص" },
+  { id: "التموين", label: "التموين" },
+  { id: "التوثيق", label: "التوثيق" },
+  { id: "السجل التجاري", label: "السجل التجاري" },
+  { id: "التأمين", label: "التأمين الاجتماعي" },
+  { id: "المحاكم", label: "المحاكم" },
 ];
 
-const HeroVisual = () => {
-  const { width } = useWindowDimensions();
-  // The real target is a narrow phone screen. The scattered arrangement below
-  // only renders past a tablet-ish breakpoint; phones always get the
-  // contained, stacked fallback so nothing can overflow the screen edge.
-  const isWide = width >= 640;
+export const Hero = ({
+  searchQuery,
+  onSearchChange,
+  selectedCategory,
+  onSelectCategory,
+  onSearchSubmit,
+}: HeroProps) => {
+  const router = useRouter();
+  const recorder = useAudioRecorderHook();
+  const tts = useTtsPlayer();
+  const { colors, themeMode } = useTheme();
+  const [isTranscribing, setIsTranscribing] = useState(false);
 
-  if (!isWide) {
-    return (
-      <View className="mt-10 items-center">
-        <HeroMockCard />
-        <View className="mt-4 w-full flex-row-reverse flex-wrap gap-3">
-          {STATS.map((stat) => (
-            <View key={stat.label} className="min-w-[130px] flex-1 rounded-2xl bg-white p-4 shadow-sm">
-              <Text className="text-right font-cairoExtraBold text-xl text-ink">{stat.value}</Text>
-              <Text className="mt-1 text-right font-plexSemiBold text-sm text-secondary">{stat.label}</Text>
+  const handleVoiceSearchToggle = async () => {
+    if (recorder.isRecording) {
+      const uri = await recorder.stopRecording();
+      if (!uri) return;
+      try {
+        setIsTranscribing(true);
+        const res = await transcribeAudio(uri);
+        const text = res.transcript.trim();
+        if (text) {
+          onSearchChange(text);
+          tts.speakTextContent(`تم البحث عن ${text}`, "search-feedback");
+        } else {
+          tts.speakTextContent("لم يتم التقاط صوت واضح، يرجى إعادة المحاولة", "search-retry");
+        }
+      } catch {
+        tts.speakTextContent("تعذر معالجة الصوت، يرجى المحاولة مرة أخرى", "search-err");
+      } finally {
+        setIsTranscribing(false);
+      }
+    } else {
+      tts.stopCurrent();
+      const ok = await recorder.startRecording();
+      if (ok) {
+        tts.speakTextContent("تحدث الآن باسم الخدمة المطلوبة", "search-prompt");
+      }
+    }
+  };
+
+  return (
+    <View
+      style={[
+        styles.heroSection,
+        {
+          backgroundColor: colors.bgSurface,
+          borderBottomColor: colors.border,
+          borderBottomWidth: colors.borderWidth,
+        },
+      ]}
+    >
+      <View style={styles.container}>
+        {/* Two-Column Asymmetrical Layout (Not Centered) */}
+        <View style={styles.layoutRow}>
+          {/* Main Column (Right in RTL) */}
+          <View style={styles.mainColumn}>
+            <Text style={[styles.headline, { color: colors.textPrimary }]}>أي خدمة؟</Text>
+            <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
+              وفر وقتك واستفد من خدمات سهلها عليا في دقائق معدودة، مع دعم كامل للتقنيات الصوتية المخصصة للمكفوفين وضعاف البصر.
+            </Text>
+
+            {/* Search Capsule */}
+            <View
+              style={[
+                styles.searchBox,
+                {
+                  backgroundColor: colors.searchBoxBg,
+                  borderColor: colors.searchBoxBorder,
+                  borderWidth: colors.borderWidth,
+                },
+              ]}
+            >
+              <Ionicons
+                name="search"
+                size={24}
+                color={colors.textSecondary}
+                style={styles.searchIcon}
+              />
+              <TextInput
+                value={searchQuery}
+                onChangeText={onSearchChange}
+                onSubmitEditing={onSearchSubmit}
+                placeholder="...اكتب اسم الخدمة المطلوبة (مثال: بطاقة الرقم القومي، رخصة قيادة)"
+                placeholderTextColor={colors.textSecondary}
+                accessibilityLabel="حقل البحث عن الخدمات الحكومية"
+                accessibilityHint="اكتب اسم الخدمة أو اضغط زر البحث الصوتي"
+                style={[styles.searchInput, { color: colors.textPrimary }]}
+              />
+
+              <Pressable
+                onPress={handleVoiceSearchToggle}
+                accessibilityRole="button"
+                accessibilityLabel={recorder.isRecording ? "إيقاف التسجيل الصوتي" : "البحث الصوتي الذكي"}
+                style={({ pressed }) => [
+                  styles.voiceSearchButton,
+                  recorder.isRecording && styles.voiceButtonRecording,
+                  {
+                    backgroundColor: themeMode === "high-contrast" ? "#000000" : "#B45309",
+                    borderColor: colors.border,
+                    borderWidth: colors.borderWidth,
+                  },
+                  pressed && styles.buttonPressed,
+                ]}
+              >
+                {isTranscribing ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Ionicons
+                    name={recorder.isRecording ? "radio" : "mic"}
+                    size={20}
+                    color="#FFFFFF"
+                  />
+                )}
+                <Text style={styles.voiceButtonText}>
+                  {recorder.isRecording ? "استماع..." : "بحث صوتي"}
+                </Text>
+              </Pressable>
+
+              <Pressable
+                onPress={onSearchSubmit}
+                accessibilityRole="button"
+                accessibilityLabel="تنفيذ البحث"
+                style={({ pressed }) => [
+                  styles.submitSearchButton,
+                  {
+                    backgroundColor: colors.btnPrimaryBg,
+                    borderColor: colors.border,
+                    borderWidth: colors.borderWidth,
+                  },
+                  pressed && styles.buttonPressed,
+                ]}
+              >
+                <Text style={[styles.submitSearchButtonText, { color: colors.btnPrimaryText }]}>
+                  ابحث
+                </Text>
+              </Pressable>
             </View>
-          ))}
+
+            {/* Popular Services Pills */}
+            <View style={styles.pillsRow}>
+              <Text style={[styles.pillsLabel, { color: colors.textPrimary }]}>
+                أشهر المعاملات :
+              </Text>
+              <View style={styles.pillsList}>
+                {POPULAR_TAGS.map((tag) => {
+                  const isSelected =
+                    selectedCategory === tag.id ||
+                    (tag.id === "all" && selectedCategory === "");
+
+                  return (
+                    <Pressable
+                      key={tag.id}
+                      onPress={() => onSelectCategory(tag.id === "all" ? "" : tag.id)}
+                      accessibilityRole="button"
+                      accessibilityLabel={`تصفية حسب ${tag.label}`}
+                      style={({ pressed }) => [
+                        styles.tagPill,
+                        {
+                          backgroundColor: isSelected ? colors.tagSelectedBg : colors.tagBg,
+                          borderColor: isSelected ? colors.tagSelectedBg : colors.tagBorder,
+                          borderWidth: colors.borderWidth,
+                        },
+                        pressed && styles.buttonPressed,
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.tagPillText,
+                          {
+                            color: isSelected ? colors.tagSelectedText : colors.tagText,
+                            fontWeight: isSelected ? "900" : "700",
+                          },
+                        ]}
+                      >
+                        {tag.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
+          </View>
+
+          {/* Side Fast-Track Card (Left in RTL) */}
+          <View
+            style={[
+              styles.sideCard,
+              {
+                backgroundColor: colors.fastTrackCardBg,
+                borderColor: colors.border,
+                borderWidth: colors.borderWidth,
+              },
+            ]}
+          >
+            <View style={[styles.sideCardHeader, { borderBottomColor: colors.border }]}>
+              <Ionicons name="flash-outline" size={22} color={colors.textPrimary} />
+              <Text style={[styles.sideCardTitle, { color: colors.textPrimary }]}>
+                الوصول السريع للمعاملات
+              </Text>
+            </View>
+
+            <View style={styles.sideCardActions}>
+              <Pressable
+                onPress={() => router.push("/(tabs)/scan")}
+                accessibilityRole="button"
+                accessibilityLabel="مسح بطاقة الرقم القومي بالكاميرا واستخراج البيانات"
+                style={({ pressed }) => [
+                  styles.fastTrackItem,
+                  {
+                    backgroundColor: colors.bgCard,
+                    borderColor: colors.border,
+                    borderWidth: colors.borderWidth,
+                  },
+                  pressed && styles.buttonPressed,
+                ]}
+              >
+                <View
+                  style={[
+                    styles.fastTrackIconBox,
+                    {
+                      backgroundColor: colors.btnPrimaryBg,
+                    },
+                  ]}
+                >
+                  <Ionicons name="camera" size={22} color={colors.btnPrimaryText} />
+                </View>
+                <View style={styles.fastTrackTextCol}>
+                  <Text style={[styles.fastTrackItemTitle, { color: colors.textPrimary }]}>
+                    مسح بطاقة الرقم القومي
+                  </Text>
+                  <Text style={[styles.fastTrackItemDesc, { color: colors.textSecondary }]}>
+                    استخراج البيانات آلياً دون كتابة يدوية
+                  </Text>
+                </View>
+              </Pressable>
+
+              <Pressable
+                onPress={() => router.push("/(tabs)/chat")}
+                accessibilityRole="button"
+                accessibilityLabel="استشارة المساعد الصوتي الذكي"
+                style={({ pressed }) => [
+                  styles.fastTrackItem,
+                  {
+                    backgroundColor: colors.bgCard,
+                    borderColor: colors.border,
+                    borderWidth: colors.borderWidth,
+                  },
+                  pressed && styles.buttonPressed,
+                ]}
+              >
+                <View
+                  style={[
+                    styles.fastTrackIconBox,
+                    {
+                      backgroundColor: themeMode === "high-contrast" ? "#000000" : "#166534",
+                    },
+                  ]}
+                >
+                  <Ionicons name="chatbubbles" size={22} color="#FFFFFF" />
+                </View>
+                <View style={styles.fastTrackTextCol}>
+                  <Text style={[styles.fastTrackItemTitle, { color: colors.textPrimary }]}>
+                    المساعد الصوتي الذكي
+                  </Text>
+                  <Text style={[styles.fastTrackItemDesc, { color: colors.textSecondary }]}>
+                    إجابات فورية على استفسارات الرسوم والخطوات
+                  </Text>
+                </View>
+              </Pressable>
+
+              <Pressable
+                onPress={onSearchSubmit}
+                accessibilityRole="button"
+                accessibilityLabel="عرض دليل الخدمات الحكومية الـ 18"
+                style={({ pressed }) => [
+                  styles.fastTrackItem,
+                  {
+                    backgroundColor: colors.bgCard,
+                    borderColor: colors.border,
+                    borderWidth: colors.borderWidth,
+                  },
+                  pressed && styles.buttonPressed,
+                ]}
+              >
+                <View
+                  style={[
+                    styles.fastTrackIconBox,
+                    {
+                      backgroundColor: themeMode === "high-contrast" ? "#000000" : "#92400E",
+                    },
+                  ]}
+                >
+                  <Ionicons name="document-text" size={22} color="#FFFFFF" />
+                </View>
+                <View style={styles.fastTrackTextCol}>
+                  <Text style={[styles.fastTrackItemTitle, { color: colors.textPrimary }]}>
+                    الدليل الشامل للخدمات
+                  </Text>
+                  <Text style={[styles.fastTrackItemDesc, { color: colors.textSecondary }]}>
+                    18 خدمة حكومية مدعومة بالصوت
+                  </Text>
+                </View>
+              </Pressable>
+            </View>
+          </View>
         </View>
       </View>
-    );
-  }
-
-  // Wide screens (tablet/web preview): scattered floating cards around the
-  // central mock, mirrored for RTL (screenshot's left-side cards move to the
-  // right, its right-side card moves to the left). Offsets are small fixed
-  // pixel values — not percentages — and the wrapper is width-capped and
-  // centered, so the scatter stays contained instead of growing unbounded
-  // with viewport width.
-  return (
-    <View className="mt-10 items-center" style={{ minHeight: 420 }}>
-      <View style={{ width: "100%", maxWidth: 380, position: "relative", alignItems: "center" }}>
-        <HeroMockCard />
-        <FloatingStat
-          label={STATS[0].label}
-          value={STATS[0].value}
-          style={{ top: -20, right: -28, width: 160, zIndex: 3, transform: [{ rotate: "-4deg" }] }}
-        />
-        <FloatingStat
-          label={STATS[1].label}
-          value={STATS[1].value}
-          style={{ bottom: -16, right: -18, width: 160, zIndex: 3, transform: [{ rotate: "3deg" }] }}
-        />
-        <FloatingStat
-          label={STATS[2].label}
-          value={STATS[2].value}
-          style={{ top: 90, left: -30, width: 150, zIndex: 3, transform: [{ rotate: "-2deg" }] }}
-        />
-      </View>
     </View>
   );
 };
 
-export const Hero = ({ onRegisterPress }: { onRegisterPress: () => void }) => {
-  return (
-    <View className="overflow-hidden rounded-b-[32px] bg-white">
-      <Container>
-        <Section className="pt-14">
-          <View className="rounded-card bg-soft p-6">
-            <Pill>مبني خصيصًا لأصحاب الإعاقة البصرية</Pill>
-            <Text className="mt-6 text-right font-cairoBlack text-5xl leading-tight text-ink">
-              حوّل مستنداتك الحكومية إلى <Highlight>محادثة صوتية</Highlight>
-            </Text>
-            <Text className="mt-5 text-right font-plexSemiBold text-xl leading-8 text-ink">
-              سهلها عليا مساعد ذكاء اصطناعي بيسمعلك مستنداتك الحكومية، يلخصها بالعربي البسيط، ويرد
-              على أسئلتك بصوتك — من غير ما تحتاج تقرا حرف واحد.
-            </Text>
-            <View className="mt-8 flex-row-reverse flex-wrap gap-4">
-              {/* Primary hero CTA — routes into the auth flow (/login) rather
-                  than straight into the app, unlike the header/final-CTA
-                  "Get Started" buttons which still go to /(tabs). */}
-              <Button onPress={onRegisterPress} accessibilityLabel="سجل الآن وابدأ استخدام التطبيق">
-                سجل الآن
-              </Button>
-              <Button variant="secondary" accessibilityLabel="اعرف كيف يعمل التطبيق">
-                كيف يعمل؟
-              </Button>
-            </View>
-            <HeroVisual />
-          </View>
-        </Section>
-      </Container>
-    </View>
-  );
-};
+const styles = StyleSheet.create({
+  heroSection: {
+    paddingTop: 36,
+    paddingBottom: 40,
+    paddingHorizontal: 16,
+  },
+  container: {
+    maxWidth: 1200,
+    width: "100%",
+    marginHorizontal: "auto",
+  },
+  layoutRow: {
+    flexDirection: "row-reverse",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    flexWrap: "wrap",
+    gap: 32,
+  },
+  mainColumn: {
+    flex: 1,
+    minWidth: 320,
+    alignItems: "flex-end",
+  },
+  headline: {
+    fontSize: 54,
+    fontWeight: "900",
+    textAlign: "right",
+    lineHeight: 64,
+    marginBottom: 8,
+  },
+  subtitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    textAlign: "right",
+    lineHeight: 28,
+    maxWidth: 620,
+    marginBottom: 24,
+  },
+  searchBox: {
+    width: "100%",
+    borderRadius: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    flexDirection: "row-reverse",
+    alignItems: "center",
+    gap: 10,
+    marginBottom: 20,
+  },
+  searchIcon: {
+    marginLeft: 4,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: "700",
+    textAlign: "right",
+    paddingVertical: 8,
+  },
+  voiceSearchButton: {
+    flexDirection: "row-reverse",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  voiceButtonRecording: {
+    backgroundColor: "#DC2626",
+  },
+  voiceButtonText: {
+    color: "#FFFFFF",
+    fontSize: 15,
+    fontWeight: "800",
+  },
+  submitSearchButton: {
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  submitSearchButtonText: {
+    fontSize: 16,
+    fontWeight: "800",
+  },
+  pillsRow: {
+    width: "100%",
+    flexDirection: "row-reverse",
+    alignItems: "flex-start",
+    flexWrap: "wrap",
+    gap: 10,
+  },
+  pillsLabel: {
+    fontSize: 15,
+    fontWeight: "800",
+    marginTop: 6,
+  },
+  pillsList: {
+    flexDirection: "row-reverse",
+    flexWrap: "wrap",
+    gap: 8,
+    flex: 1,
+  },
+  tagPill: {
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+  },
+  tagPillText: {
+    fontSize: 14,
+  },
+  sideCard: {
+    width: "100%",
+    maxWidth: 380,
+    borderRadius: 16,
+    padding: 20,
+  },
+  sideCardHeader: {
+    flexDirection: "row-reverse",
+    alignItems: "center",
+    gap: 8,
+    paddingBottom: 14,
+    marginBottom: 14,
+    borderBottomWidth: 1,
+  },
+  sideCardTitle: {
+    fontSize: 17,
+    fontWeight: "800",
+    textAlign: "right",
+  },
+  sideCardActions: {
+    gap: 12,
+  },
+  fastTrackItem: {
+    flexDirection: "row-reverse",
+    alignItems: "center",
+    gap: 12,
+    borderRadius: 12,
+    padding: 12,
+  },
+  fastTrackIconBox: {
+    width: 44,
+    height: 44,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  fastTrackTextCol: {
+    flex: 1,
+    alignItems: "flex-end",
+  },
+  fastTrackItemTitle: {
+    fontSize: 15,
+    fontWeight: "800",
+    textAlign: "right",
+    marginBottom: 2,
+  },
+  fastTrackItemDesc: {
+    fontSize: 12,
+    fontWeight: "600",
+    textAlign: "right",
+  },
+  buttonPressed: {
+    opacity: 0.8,
+  },
+});

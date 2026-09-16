@@ -18,8 +18,8 @@ export function DocumentCard({ doc, onPress }: DocumentCardProps) {
   const { highContrast } = useAppearance();
   const c = palette(highContrast);
   const status = STATUS_META[doc.status];
-  const typeLabel = doc.doc_type ? DOC_TYPE_LABELS[doc.doc_type] : "مستند";
-  const accents = doc.doc_type ? DOC_TYPE_ACCENTS[doc.doc_type] : DOC_TYPE_ACCENTS.unknown;
+  const typeLabel = (doc.doc_type && DOC_TYPE_LABELS[doc.doc_type]) ? DOC_TYPE_LABELS[doc.doc_type] : "مستند";
+  const accents = (doc.doc_type && DOC_TYPE_ACCENTS[doc.doc_type]) ? DOC_TYPE_ACCENTS[doc.doc_type] : DOC_TYPE_ACCENTS.unknown;
 
   const lineText = doc.status === "processing" ? "لسه بيتقرا... هنعرفك أول ما يخلص" : doc.ai_summary || "";
   const statusColor = highContrast ? "#FFFFFF" : status.colorLight;

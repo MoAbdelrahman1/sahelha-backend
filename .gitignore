@@ -16,3 +16,10 @@ backend/test_voice.mp3
 models/
 backend/app/services/models/
 .cache/
+*.gguf
+*.safetensors
+qwen2.5-3b-egypt-adapter/
+Modelfile*
+*Modelfile*
+adapter_config.json
+backend/adapter_config.json

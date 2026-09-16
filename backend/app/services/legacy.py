@@ -129,14 +129,20 @@ def store_document(
     summary_arabic: str,
     raw_text: str,
     fields: list[dict[str, str]],
+    user_id: int | None = None,
 ) -> int:
     with db_connection() as connection:
+        if user_id is None:
+            user_row = connection.execute("SELECT id FROM users ORDER BY id ASC LIMIT 1").fetchone()
+            if user_row:
+                user_id = user_row["id"]
+
         cursor = connection.execute(
             """
-            INSERT INTO documents (session_id, original_name, mime_type, document_type, summary_arabic, raw_text, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO documents (session_id, original_name, mime_type, document_type, summary_arabic, ai_summary, raw_text, created_at, user_id, status)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'done')
             """,
-            (session_id, original_name, mime_type, document_type, summary_arabic, raw_text, now_iso()),
+            (session_id, original_name, mime_type, document_type, summary_arabic, summary_arabic, raw_text, now_iso(), user_id),
         )
         document_id = int(cursor.lastrowid)
 

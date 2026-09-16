@@ -5,6 +5,7 @@ import { useFocusEffect, useRouter } from "expo-router";
 import { AuthScreenShell } from "@/features/auth/components/AuthScreenShell";
 import { ValidatedField } from "@/features/auth/components/ValidatedField";
 import { emailHasInvalidChar, isValidEmail, isValidPassword, passwordHasInvalidChar } from "@/features/auth/validation";
+import { useAuth } from "@/store/authStore";
 import { login } from "@/features/auth/api";
 import { ApiError } from "@/lib/api/errors";
 
@@ -18,6 +19,7 @@ const PASSWORD_ERROR_HINT = "كلمة المرور يجب ألا تقل عن 8 �
 
 export default function LoginScreen() {
   const router = useRouter();
+  const { loginUser } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -64,7 +66,7 @@ export default function LoginScreen() {
 
     setLoading(true);
     try {
-      await login(email, password);
+      await loginUser(email, password);
       resetForm(); // clear the password out of state before navigating away
       // Retarget point: where a successful login sends the user.
       router.replace("/(tabs)");
@@ -79,7 +81,7 @@ export default function LoginScreen() {
 
   return (
     <AuthScreenShell>
-      <Text className="font-cairoExtraBold mb-7 text-right text-4xl text-ink">تسجيل الدخول</Text>
+      <Text className="mb-7 text-right text-4xl font-extrabold text-ink">تسجيل الدخول</Text>
 
       <ValidatedField
         key={`email-${formKey}`}
@@ -126,26 +128,20 @@ export default function LoginScreen() {
       <Pressable
         onPress={onSubmit}
         disabled={loading}
-        className={`min-h-[56px] items-center justify-center rounded-full bg-primary px-6 py-4 active:opacity-80 ${
+        className={`min-h-[56px] items-center justify-center rounded-full bg-brandBlueDeep px-6 py-4 active:opacity-80 ${
           loading ? "opacity-60" : ""
         }`}
       >
         {loading ? (
           <ActivityIndicator color="#FFFFFF" />
         ) : (
-          <Text className="font-plexBold text-2xl text-white">تسجيل الدخول</Text>
+          <Text className="text-2xl font-bold text-white">تسجيل الدخول</Text>
         )}
       </Pressable>
 
       <Pressable onPress={() => router.push("/register")} className="mt-6 min-h-[56px] items-center justify-center">
-        <Text className="font-plexBold text-right text-xl text-primary">إنشاء حساب جديد</Text>
+        <Text className="text-right text-xl font-bold text-brandBlueDeep">إنشاء حساب جديد</Text>
       </Pressable>
-
-      {/* No "forgot password" flow exists on the backend yet — a graceful
-          fallback per SAHELHA_DESIGN_BRIEF.md §4, not a broken link. */}
-      <Text className="font-plex mt-4 text-center text-sm text-secondary">
-        نسيت كلمة السر؟ تواصل مع الدعم
-      </Text>
     </AuthScreenShell>
   );
 }
