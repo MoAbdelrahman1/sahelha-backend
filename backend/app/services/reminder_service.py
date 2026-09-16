@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import re
 import sqlite3
 from datetime import datetime
 
@@ -24,19 +25,77 @@ _DATE_FORMATS = (
     "%Y/%m/%d",
 )
 
+# The vision/LLM pipeline returns expiry_date as free-form text (see
+# ai_service.py's prompt, which only asks for "تاريخ انتهاء صلاحية المستند"
+# with no format constraint). It commonly comes back with Arabic-Indic
+# digits and/or Arabic month names instead of a clean ISO/slash date, which
+# used to make parse_expiry_date silently return None and drop the
+# auto-reminder with no trace of why.
+_ARABIC_INDIC_DIGITS = "٠١٢٣٤٥٦٧٨٩"
+
+_ARABIC_MONTHS = {
+    "يناير": 1, "فبراير": 2, "مارس": 3, "أبريل": 4, "ابريل": 4, "مايو": 5,
+    "يونيو": 6, "يونية": 6, "يوليو": 7, "يولية": 7, "أغسطس": 8, "اغسطس": 8,
+    "سبتمبر": 9, "أكتوبر": 10, "اكتوبر": 10, "نوفمبر": 11, "ديسمبر": 12,
+}
+
+_DATE_SUBSTRING_RE = re.compile(
+    r"\d{1,2}[/\-.]\d{1,2}[/\-.]\d{2,4}|\d{4}[/\-.]\d{1,2}[/\-.]\d{1,2}"
+)
+
+
+def _normalize_digits(text: str) -> str:
+    return text.translate({ord(a): str(i) for i, a in enumerate(_ARABIC_INDIC_DIGITS)})
+
+
+def _parse_arabic_month_date(text: str) -> datetime | None:
+    for month_name, month_num in _ARABIC_MONTHS.items():
+        if month_name not in text:
+            continue
+        digits = re.findall(r"\d+", text)
+        if len(digits) >= 2:
+            day, year = int(digits[0]), int(digits[-1])
+            if year < 100:
+                year += 2000
+            try:
+                return datetime(year, month_num, day)
+            except ValueError:
+                return None
+    return None
+
 
 def parse_expiry_date(expiry_date: str) -> datetime | None:
+    if not expiry_date or not expiry_date.strip():
+        return None
+
+    normalized = _normalize_digits(expiry_date.strip())
+
     try:
-        return datetime.fromisoformat(expiry_date)
+        return datetime.fromisoformat(normalized)
     except ValueError:
         pass
 
     for date_format in _DATE_FORMATS:
         try:
-            return datetime.strptime(expiry_date, date_format)
+            return datetime.strptime(normalized, date_format)
         except ValueError:
             continue
 
+    by_month_name = _parse_arabic_month_date(normalized)
+    if by_month_name is not None:
+        return by_month_name
+
+    # Last resort: the string may carry extra words around the date (e.g.
+    # "صالحة حتى 20/05/2027") — pull out just the date-shaped substring.
+    match = _DATE_SUBSTRING_RE.search(normalized)
+    if match:
+        for date_format in _DATE_FORMATS:
+            try:
+                return datetime.strptime(match.group(0), date_format)
+            except ValueError:
+                continue
+
+    logger.warning("Could not parse expiry date for reminder: %r", expiry_date)
     return None
 
 
@@ -80,6 +139,8 @@ def create_reminder_from_expiry(doc_id: int, user_id: int, expiry_date: str) -> 
             (user_id, doc_id, remind_at.isoformat(), f"مستندك ينتهي في {expiry_date}", now_iso()),
         )
         connection.commit()
+
+    logger.info("Auto-reminder created for document %s (user %s) at %s", doc_id, user_id, remind_at.isoformat())
 
 
 def send_due_reminders() -> int:
