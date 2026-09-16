@@ -3,6 +3,12 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+from dotenv import load_dotenv
+
+# Must run before any os.getenv() below, otherwise SECRET_KEY/DB_PATH/etc.
+# silently fall back to whatever was already in the process env (or the
+# hardcoded default) and .env edits have no effect until a fresh shell.
+load_dotenv(dotenv_path=Path(__file__).resolve().parent.parent / ".env", override=True)
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 DB_PATH = Path(os.getenv("DB_PATH", str(BASE_DIR / "sahelha.db")))

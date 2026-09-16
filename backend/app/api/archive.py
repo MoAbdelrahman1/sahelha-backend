@@ -63,7 +63,11 @@ def view_shared_document(token: str) -> Response:
     if row is None:
         raise HTTPException(status_code=404, detail="Shared document not found")
 
-    pdf_bytes = render_document_pdf(row)
+    try:
+        pdf_bytes = render_document_pdf(row)
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Source image not found")
+
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",

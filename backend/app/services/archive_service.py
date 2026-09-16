@@ -9,7 +9,7 @@ import sqlite3
 from pathlib import Path
 
 import qrcode
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image
 
 from app.db import db_connection
 
@@ -95,64 +95,17 @@ def generate_qr_base64(share_url: str) -> str:
 
 
 def render_document_pdf(row: sqlite3.Row) -> bytes:
-    """Renders the shared document as an actual PDF file: the scanned photo
-    (re-encoded to PDF via Pillow, which needs no extra PDF dependency) with
-    the plain-Arabic AI summary appended as a second page. Falls back to a
-    text-only page if the original image is missing, so a share link never
-    404s just because the source photo was deleted from disk."""
-    pages: list[Image.Image] = []
-
+    """Renders the shared document as a PDF containing just the uploaded
+    photo, re-encoded via Pillow (which needs no extra PDF dependency). No
+    text/summary page: Pillow can't shape or bidi-reorder Arabic, so drawing
+    the AI summary onto a page produced unreadable glyph soup instead of
+    real text — the image alone is the only thing this can render correctly."""
     image_path = row["image_path"] if "image_path" in row.keys() else None
-    if image_path and Path(image_path).is_file():
-        try:
-            with Image.open(image_path) as img:
-                pages.append(img.convert("RGB"))
-        except Exception:
-            pages.append(None)  # type: ignore[arg-type]
-        pages = [p for p in pages if p is not None]
+    if not image_path or not Path(image_path).is_file():
+        raise FileNotFoundError("No source image for this document")
 
-    summary = (row["ai_summary"] if "ai_summary" in row.keys() else None) or row["summary_arabic"] or ""
-    summary_page = _render_text_page(summary)
-    pages.append(summary_page)
-
-    buffer = io.BytesIO()
-    first, rest = pages[0], pages[1:]
-    first.save(buffer, format="PDF", save_all=True, append_images=rest)
-    return buffer.getvalue()
-
-
-def _render_text_page(text: str, size: tuple[int, int] = (1240, 1754)) -> Image.Image:
-    """A4-proportioned white page with the summary text drawn on it. Arabic
-    shaping isn't available without extra deps, so this is best-effort layout
-    (line-wrapped, left-to-right glyph order) rather than a typeset RTL page."""
-    page = Image.new("RGB", size, "white")
-    draw = ImageDraw.Draw(page)
-    try:
-        font = ImageFont.truetype("arial.ttf", 28)
-    except Exception:
-        font = ImageFont.load_default()
-
-    margin = 80
-    max_width = size[0] - 2 * margin
-    words = text.split()
-    lines: list[str] = []
-    current = ""
-    for word in words:
-        candidate = f"{current} {word}".strip()
-        if draw.textlength(candidate, font=font) <= max_width:
-            current = candidate
-        else:
-            if current:
-                lines.append(current)
-            current = word
-    if current:
-        lines.append(current)
-
-    y = margin
-    for line in lines:
-        draw.text((margin, y), line, fill="black", font=font)
-        y += 40
-        if y > size[1] - margin:
-            break
-
-    return page
+    with Image.open(image_path) as img:
+        page = img.convert("RGB")
+        buffer = io.BytesIO()
+        page.save(buffer, format="PDF")
+        return buffer.getvalue()
