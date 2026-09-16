@@ -1,0 +1,27 @@
+INFO:     Will watch for changes in these directories: ['D:\\Summer26\\sahelha\\backend']
+INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+INFO:     Started reloader process [6772] using WatchFiles
+INFO:     Started server process [32640]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+[VOICE SERVICE] ✅ Voice service is ready (STT: Groq Whisper-Large-v3, TTS: Edge-TTS ar-EG-SalmaNeural)
+INFO:     127.0.0.1:53532 - "GET /docs HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57862 - "OPTIONS /api/ai/ask HTTP/1.1" 200 OK
+[VOICE SERVICE] Groq Whisper STT failed (Connection error.), falling back to faster-whisper
+[VOICE SERVICE] ffmpeg audio preprocessing skipped: [WinError 2] The system cannot find the file specified
+[VOICE SERVICE] Initializing faster-whisper on CUDA (GPU Acceleration: True)...
+[VOICE SERVICE] Failed to load GPU faster-whisper model: Got: ConnectError: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1006)
+An error happened while trying to locate the files on the Hub, and we cannot find the appropriate snapshot folder for the specified revision on the local disk. Please check your internet connection and try again.
+[VOICE SERVICE] Loading CPU fallback faster-whisper model...
+[VOICE SERVICE] CPU Transcription error: Got: ConnectError: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1006)
+An error happened while trying to locate the files on the Hub, and we cannot find the appropriate snapshot folder for the specified revision on the local disk. Please check your internet connection and try again.
+INFO:     127.0.0.1:53225 - "POST /api/ai/ask HTTP/1.1" 400 Bad Request
+[VOICE SERVICE] Groq Whisper STT failed (Connection error.), falling back to faster-whisper
+[VOICE SERVICE] ffmpeg audio preprocessing skipped: [WinError 2] The system cannot find the file specified
+[VOICE SERVICE] Initializing faster-whisper on CUDA (GPU Acceleration: True)...
+[VOICE SERVICE] Failed to load GPU faster-whisper model: Got: ConnectError: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1006)
+An error happened while trying to locate the files on the Hub, and we cannot find the appropriate snapshot folder for the specified revision on the local disk. Please check your internet connection and try again.
+[VOICE SERVICE] Loading CPU fallback faster-whisper model...
+[VOICE SERVICE] CPU Transcription error: Got: ConnectError: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1006)
+An error happened while trying to locate the files on the Hub, and we cannot find the appropriate snapshot folder for the specified revision on the local disk. Please check your internet connection and try again.
+INFO:     127.0.0.1:62799 - "POST /api/ai/ask HTTP/1.1" 400 Bad Request
