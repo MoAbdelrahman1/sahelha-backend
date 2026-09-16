@@ -11,6 +11,7 @@ import {
   isAutoReminder,
   type Reminder,
 } from "@/features/reminders/api";
+import { parseExpiryDate } from "@/features/reminders/expiryDate";
 import { useAppearance } from "@/store/appearanceStore";
 import { useDocuments } from "@/store/documentsStore";
 import { useToast } from "@/store/toastStore";
@@ -109,6 +110,18 @@ export default function RemindersScreen() {
     } catch (err: any) {
       showToast(err?.friendlyMessageAr ?? "تعذّر حذف التذكير");
       load();
+    }
+  };
+
+  const selectDocument = (docId: number | null) => {
+    setDocumentId(docId);
+    if (docId === null) return;
+    const doc = documents.find((d) => d.id === docId);
+    const parsed = parseExpiryDate(doc?.expiry_date);
+    if (parsed) {
+      setDateStr(parsed.dateStr);
+      setTimeStr(parsed.timeStr);
+      showToast("تم تحديد تاريخ التذكير تلقائيًا من تاريخ انتهاء المستند");
     }
   };
 
@@ -348,7 +361,7 @@ export default function RemindersScreen() {
                 </Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ flexDirection: "row-reverse", gap: 8 }}>
                   <Pressable
-                    onPress={() => setDocumentId(null)}
+                    onPress={() => selectDocument(null)}
                     accessibilityRole="button"
                     accessibilityState={{ selected: documentId === null }}
                     style={{
@@ -369,7 +382,7 @@ export default function RemindersScreen() {
                     return (
                       <Pressable
                         key={doc.id}
-                        onPress={() => setDocumentId(doc.id)}
+                        onPress={() => selectDocument(doc.id)}
                         accessibilityRole="button"
                         accessibilityState={{ selected }}
                         style={{

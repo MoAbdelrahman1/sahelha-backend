@@ -77,24 +77,24 @@ export function ServiceApplicationScreen({ serviceId, onCancel }: ServiceApplica
         const scannedIdDoc = documents.find((d) => d.doc_type === "national_id");
         const scannedBirthDoc = documents.find((d) => d.doc_type === "birth_certificate");
 
-        // Helper to get fallback value for standard fields
+        // Helper to get fallback value for standard fields, from the
+        // logged-in user's own profile only — never fabricate a value.
         const uAny = user as any;
         const getStandardValue = (field: FormField): { val: string; isPreFilled: boolean } => {
           if (field.id === "full_name" || field.field_type === "name") {
-            const val = uAny?.full_name || "محمود عصام عبدالعزيز قطب محمد";
-            return { val, isPreFilled: true };
+            const val = uAny?.full_name;
+            return { val: val || "", isPreFilled: !!val };
           }
           if (field.id === "national_id" || field.field_type === "national_id") {
-            const val = uAny?.national_id || "28909091300595";
-            return { val, isPreFilled: true };
+            const val = uAny?.national_id;
+            return { val: val || "", isPreFilled: !!val };
           }
           if (field.id === "phone" || field.field_type === "phone") {
-            const val = uAny?.phone_number || "01069616399";
-            return { val, isPreFilled: true };
+            const val = uAny?.phone || uAny?.phone_number;
+            return { val: val || "", isPreFilled: !!val };
           }
-          if (field.id === "delivery_address") {
-            const val = uAny?.governorate ? `محافظة ${uAny.governorate}` : "القاهرة، مصر";
-            return { val, isPreFilled: true };
+          if (field.id === "delivery_address" && uAny?.governorate) {
+            return { val: `محافظة ${uAny.governorate}`, isPreFilled: true };
           }
           return { val: "", isPreFilled: false };
         };

@@ -78,7 +78,9 @@ export function attachResilience(client: AxiosInstance, rawClient: AxiosInstance
       }
 
       const apiError = toApiError(error);
-      const isHeavyEndpoint = typeof config.url === "string" && config.url.includes("/api/document/analyze");
+      const isHeavyEndpoint =
+        typeof config.url === "string" &&
+        (config.url.includes("/api/document/analyze") || config.url.includes("/api/ai/ask"));
 
       if (apiError.isRetryable && !isHeavyEndpoint) {
         const retryCount = config.__retryCount ?? 0;

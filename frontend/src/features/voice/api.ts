@@ -105,6 +105,10 @@ export async function askAiVoice(params: {
   try {
     const { data } = await apiClient.post<AiAskResponse>("/api/ai/ask", formData, {
       headers: { "Content-Type": "multipart/form-data" },
+      // Voice requests add a server-side transcription step (Groq Whisper, with a
+      // slower local fallback) on top of the LLM answer + TTS, so they routinely
+      // exceed the default API timeout that text-only asks comfortably meet.
+      timeout: params.audioUri ? 60000 : undefined,
     });
     return data;
   } catch (error) {

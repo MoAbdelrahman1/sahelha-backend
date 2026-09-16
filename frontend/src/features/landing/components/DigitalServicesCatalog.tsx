@@ -28,7 +28,9 @@ const CATEGORIES = [
   { id: "الضرائب", label: "الضرائب والسجل التجاري", icon: "briefcase-outline" as const },
 ];
 
-function getServiceIcon(category: string, title: string): keyof typeof Ionicons.glyphMap {
+function getServiceIcon(category: string | undefined, title: string | undefined): keyof typeof Ionicons.glyphMap {
+  category = category ?? "";
+  title = title ?? "";
   if (title.includes("زواج") || title.includes("طلاق")) return "heart-outline";
   if (title.includes("ميلاد") || title.includes("وفاة") || category.includes("الأحوال")) return "person-outline";
   if (category.includes("مركباتي") || title.includes("رخصة") || title.includes("قيادة")) return "car-outline";

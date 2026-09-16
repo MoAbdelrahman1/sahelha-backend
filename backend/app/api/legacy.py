@@ -131,23 +131,26 @@ async def analyze_document(
     current_user: dict[str, Any] | None = Depends(get_optional_current_user),
 ) -> dict[str, Any]:
     import asyncio
-    import tempfile, os
+    from uuid import uuid4
+
+    from app.core.security import get_upload_dir
+    from app.core.storage import file_extension, save_upload_file
     from app.services.pipeline import process_document_pipeline
 
     if file is None:
         raise HTTPException(status_code=400, detail="No file uploaded")
 
-    # Save uploaded file to a temp path so pipeline can read it
-    suffix = os.path.splitext(file.filename or "")[-1] or ".jpg"
-    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
-        tmp.write(await file.read())
-        tmp_path = tmp.name
+    # Persist the upload permanently (previously this went to a temp file
+    # that got unlinked right after the pipeline ran, so image_path was
+    # never set on the row and Share/QR had no source photo to render as a
+    # PDF for any document created through this endpoint).
+    content = await file.read()
+    ext = file_extension(file.filename or "") or ".jpg"
+    owner_id = current_user["id"] if current_user else "anon"
+    relative_name = f"{owner_id}/{uuid4().hex}{ext}"
+    image_path = save_upload_file(get_upload_dir(), relative_name, content)
 
-    try:
-        result = await asyncio.to_thread(process_document_pipeline, tmp_path)
-    finally:
-        if os.path.exists(tmp_path):
-            os.unlink(tmp_path)
+    result = await asyncio.to_thread(process_document_pipeline, image_path)
 
 
     from app.services.ai_service import _coerce_result
@@ -265,6 +268,7 @@ async def analyze_document(
         result.get("ocr_text", ""),
         fields,
         user_id=user_id,
+        image_path=image_path,
     )
 
     # Format clean key-value dictionary list for the frontend UI

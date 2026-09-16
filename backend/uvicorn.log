@@ -1,43 +1,179 @@
 INFO:     Will watch for changes in these directories: ['D:\\Summer26\\sahelha\\backend']
 INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
-INFO:     Started reloader process [9364] using WatchFiles
-INFO:     Started server process [24352]
+INFO:     Started reloader process [17876] using WatchFiles
+INFO:     Started server process [32724]
 INFO:     Waiting for application startup.
 INFO:     Application startup complete.
 [VOICE SERVICE] ✅ Voice service is ready (STT: Groq Whisper-Large-v3, TTS: Edge-TTS ar-EG-SalmaNeural)
-INFO:     127.0.0.1:65220 - "GET /docs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:51103 - "GET /docs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:63646 - "POST /api/auth/register HTTP/1.1" 200 OK
-INFO:     127.0.0.1:59420 - "POST /api/ai/ask HTTP/1.1" 401 Unauthorized
-INFO:     127.0.0.1:52477 - "POST /api/auth/register HTTP/1.1" 200 OK
 [RAG SERVICE] Loaded 18 government services from digital_gov_dataset.json
+INFO:     127.0.0.1:55617 - "GET /api/services HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52950 - "GET /api/services/user/applications HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:49772 - "GET /api/services HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49376 - "GET /api/documents/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59666 - "GET /api/services/user/applications HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:63312 - "GET /api/auth/me HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:61562 - "GET /api/documents/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63312 - "OPTIONS /api/auth/refresh HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63312 - "POST /api/auth/refresh HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:52602 - "POST /api/auth/register HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52602 - "GET /api/services HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59477 - "OPTIONS /api/services/STRF-VEHICLE-LICENSE-RENEWAL/form HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59477 - "GET /api/services/STRF-VEHICLE-LICENSE-RENEWAL/form HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59477 - "OPTIONS /api/voice/tts HTTP/1.1" 200 OK
+[VOICE TTS] Received request - text length: 49, language: 'ar'
+[VOICE SERVICE] Synthesized speech using edge-tts (ar-EG-SalmaNeural) -> tts_e2b4494daa474c18bd4b9f16928d8998.mp3
+INFO:     127.0.0.1:59477 - "POST /api/voice/tts HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49773 - "GET /uploads/1/tts_e2b4494daa474c18bd4b9f16928d8998.mp3 HTTP/1.1" 206 Partial Content
+INFO:     127.0.0.1:58715 - "GET /api/documents HTTP/1.1" 307 Temporary Redirect
+INFO:     127.0.0.1:58715 - "GET /api/documents/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65269 - "OPTIONS /api/reminders/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65269 - "GET /api/reminders/ HTTP/1.1" 200 OK
+[VOICE TTS] Received request - text length: 311, language: 'ar'
+[VOICE SERVICE] Synthesized speech using edge-tts (ar-EG-SalmaNeural) -> tts_7063be575fa543e0874957f62d7b2b47.mp3
+INFO:     127.0.0.1:56776 - "POST /api/voice/tts HTTP/1.1" 200 OK
+[VOICE TTS] Received request - text length: 311, language: 'ar'
+[VOICE SERVICE] Synthesized speech using edge-tts (ar-EG-SalmaNeural) -> tts_6fe9007280384901903b588ac7ce3323.mp3
+INFO:     127.0.0.1:64049 - "POST /api/voice/tts HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56776 - "OPTIONS /api/services/CSOFA-BIRTH-CERTIFICATE/form HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56776 - "GET /api/services/CSOFA-BIRTH-CERTIFICATE/form HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61088 - "GET /api/services/CSOFA-ID-CARD/form HTTP/1.1" 200 OK
+[VOICE TTS] Received request - text length: 57, language: 'ar'
+[VOICE SERVICE] Synthesized speech using edge-tts (ar-EG-SalmaNeural) -> tts_9bf877661f664240833b52153d9c5a12.mp3
+INFO:     127.0.0.1:61088 - "POST /api/voice/tts HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59605 - "GET /uploads/1/tts_9bf877661f664240833b52153d9c5a12.mp3 HTTP/1.1" 206 Partial Content
+INFO:     127.0.0.1:60430 - "OPTIONS /api/document/analyze HTTP/1.1" 200 OK
+
+────────────────────────────────────────────────────────────
+[PIPELINE] Primary Stage: Attempting Direct Multimodal Vision analysis...
+[AI SERVICE Vision] Successfully analyzed photo directly via Azure OpenAI Vision!
+[PIPELINE] Direct Vision succeeded! (doc_type: national_id)
+[ID CROP FALLBACK] Non-fatal card cropping issue: easyocr is not installed
+[LLM ANALYSIS]
+  doc_type    : national_id
+  summary     : بطاقة رقم قومي لمواطن مصري.
+  dates       : ['٢٠٠٤/٠٨/٠٥']
+  expiry_date : ٢٠٢٧/٠٨/٠٧
+  amounts     : []
+  tags        : ['بطاقة رقم قومي', 'إثبات شخصية', 'أنثى', 'مسلمة', 'آنسة', 'طالبة']
+────────────────────────────────────────────────────────────
+
+INFO:     127.0.0.1:60430 - "POST /api/document/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60430 - "GET /api/documents HTTP/1.1" 307 Temporary Redirect
+INFO:     127.0.0.1:60430 - "OPTIONS /api/documents/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60310 - "GET /api/documents HTTP/1.1" 307 Temporary Redirect
+INFO:     127.0.0.1:60430 - "GET /api/documents/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60310 - "GET /api/documents/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64146 - "OPTIONS /api/services/user/applications HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63017 - "OPTIONS /api/auth/me HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50669 - "GET /api/services/user/applications HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50744 - "GET /api/documents/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63017 - "GET /api/auth/me HTTP/1.1" 200 OK
+[VOICE TTS] Received request - text length: 27, language: 'ar'
+[VOICE SERVICE] Synthesized speech using edge-tts (ar-EG-SalmaNeural) -> tts_5e73fba2778a443dbfffddb63edb2d39.mp3
+INFO:     127.0.0.1:63017 - "POST /api/voice/tts HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62917 - "GET /uploads/1/tts_5e73fba2778a443dbfffddb63edb2d39.mp3 HTTP/1.1" 206 Partial Content
+INFO:     127.0.0.1:53488 - "OPTIONS /api/services HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53488 - "GET /api/services HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63347 - "OPTIONS /api/documents HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63347 - "GET /api/documents HTTP/1.1" 307 Temporary Redirect
+INFO:     127.0.0.1:63347 - "GET /api/documents/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51628 - "GET /api/reminders/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51895 - "GET /api/reminders/ HTTP/1.1" 200 OK
+[VOICE TTS] Received request - text length: 27, language: 'ar'
+[VOICE SERVICE] Synthesized speech using edge-tts (ar-EG-SalmaNeural) -> tts_cff9c53803f748d39c5d6047c99a3980.mp3
+INFO:     127.0.0.1:63783 - "POST /api/voice/tts HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56841 - "OPTIONS /api/ai/ask HTTP/1.1" 200 OK
 [AI SERVICE] Ollama connection/timeout for 'qwen2.5:7b-egypt' (HTTPConnectionPool(host='localhost', port=11434): Max retries exceeded with url: /api/chat (Caused by NewConnectionError("HTTPConnection(host='localhost', port=11434): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it"))). Bypassing model retry loop.
 [AI SERVICE] Local Ollama (qwen2.5:7b-egypt) unavailable (HTTPConnectionPool(host='localhost', port=11434): Max retries exceeded with url: /api/chat (Caused by NewConnectionError("HTTPConnection(host='localhost', port=11434): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it"))); attempting cloud fallback...
-[VOICE SERVICE] Synthesized speech using edge-tts (ar-EG-SalmaNeural) -> tts_3dc07057189744b5a9e596795af2442a.mp3
-INFO:     127.0.0.1:58309 - "POST /api/ai/ask HTTP/1.1" 200 OK
-INFO:     127.0.0.1:63719 - "GET /uploads/7/tts_3dc07057189744b5a9e596795af2442a.mp3 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:53881 - "POST /api/auth/login HTTP/1.1" 200 OK
-INFO:     127.0.0.1:53881 - "OPTIONS /api/services HTTP/1.1" 200 OK
-INFO:     127.0.0.1:53881 - "GET /api/services HTTP/1.1" 200 OK
-INFO:     127.0.0.1:55255 - "OPTIONS /api/services/SUPPLY-ADD-DEPENDENTS/form HTTP/1.1" 200 OK
-INFO:     127.0.0.1:55255 - "GET /api/services/SUPPLY-ADD-DEPENDENTS/form HTTP/1.1" 200 OK
-[VOICE TTS] Received request - text length: 111, language: 'ar'
-[VOICE SERVICE] Synthesized speech using edge-tts (ar-EG-SalmaNeural) -> tts_22e3fcf055fd4bbe8741ed00dccb60dc.mp3
-INFO:     127.0.0.1:55255 - "POST /api/voice/tts HTTP/1.1" 200 OK
-INFO:     127.0.0.1:53643 - "GET /uploads/2/tts_22e3fcf055fd4bbe8741ed00dccb60dc.mp3 HTTP/1.1" 206 Partial Content
-INFO:     127.0.0.1:53565 - "OPTIONS /api/documents HTTP/1.1" 200 OK
-INFO:     127.0.0.1:53565 - "GET /api/documents HTTP/1.1" 307 Temporary Redirect
-INFO:     127.0.0.1:53565 - "OPTIONS /api/documents/ HTTP/1.1" 200 OK
-INFO:     127.0.0.1:53565 - "GET /api/documents/ HTTP/1.1" 200 OK
+[VOICE SERVICE] Synthesized speech using edge-tts (ar-EG-SalmaNeural) -> tts_644a59c11ce7491d9f480f677a017844.mp3
+INFO:     127.0.0.1:56841 - "POST /api/ai/ask HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60344 - "GET /uploads/1/tts_644a59c11ce7491d9f480f677a017844.mp3 HTTP/1.1" 206 Partial Content
+[VOICE SERVICE] Transcribed audio via Groq Whisper API -> 'رخصة المستنمسة.'
+[AI SERVICE] Ollama connection/timeout for 'qwen2.5:7b-egypt' (HTTPConnectionPool(host='localhost', port=11434): Max retries exceeded with url: /api/chat (Caused by NewConnectionError("HTTPConnection(host='localhost', port=11434): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it"))). Bypassing model retry loop.
+[AI SERVICE] Local Ollama (qwen2.5:7b-egypt) unavailable (HTTPConnectionPool(host='localhost', port=11434): Max retries exceeded with url: /api/chat (Caused by NewConnectionError("HTTPConnection(host='localhost', port=11434): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it"))); attempting cloud fallback...
+[VOICE SERVICE] Synthesized speech using edge-tts (ar-EG-SalmaNeural) -> tts_ed3899becb0d4826862bf4335ab2adfc.mp3
+INFO:     127.0.0.1:64989 - "POST /api/ai/ask HTTP/1.1" 200 OK
+[VOICE SERVICE] Transcribed audio via Groq Whisper API -> 'رخصة المستنمسة.'
+[AI SERVICE] Ollama connection/timeout for 'qwen2.5:7b-egypt' (HTTPConnectionPool(host='localhost', port=11434): Max retries exceeded with url: /api/chat (Caused by NewConnectionError("HTTPConnection(host='localhost', port=11434): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it"))). Bypassing model retry loop.
+[AI SERVICE] Local Ollama (qwen2.5:7b-egypt) unavailable (HTTPConnectionPool(host='localhost', port=11434): Max retries exceeded with url: /api/chat (Caused by NewConnectionError("HTTPConnection(host='localhost', port=11434): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it"))); attempting cloud fallback...
+[VOICE SERVICE] Synthesized speech using edge-tts (ar-EG-SalmaNeural) -> tts_1eb2bd3c729d4ee5b90acab7240cbee9.mp3
+[VOICE SERVICE] Transcribed audio via Groq Whisper API -> 'رخصة المستنمسة.'
+[AI SERVICE] Ollama connection/timeout for 'qwen2.5:7b-egypt' (HTTPConnectionPool(host='localhost', port=11434): Max retries exceeded with url: /api/chat (Caused by NewConnectionError("HTTPConnection(host='localhost', port=11434): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it"))). Bypassing model retry loop.
+[AI SERVICE] Local Ollama (qwen2.5:7b-egypt) unavailable (HTTPConnectionPool(host='localhost', port=11434): Max retries exceeded with url: /api/chat (Caused by NewConnectionError("HTTPConnection(host='localhost', port=11434): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it"))); attempting cloud fallback...
+[VOICE SERVICE] Synthesized speech using edge-tts (ar-EG-SalmaNeural) -> tts_fd454f96bdf042b19e80f9d1b1267933.mp3
+[VOICE SERVICE] Transcribed audio via Groq Whisper API -> 'رخصة المستنمسة.'
+[AI SERVICE] Ollama connection/timeout for 'qwen2.5:7b-egypt' (HTTPConnectionPool(host='localhost', port=11434): Max retries exceeded with url: /api/chat (Caused by NewConnectionError("HTTPConnection(host='localhost', port=11434): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it"))). Bypassing model retry loop.
+[AI SERVICE] Local Ollama (qwen2.5:7b-egypt) unavailable (HTTPConnectionPool(host='localhost', port=11434): Max retries exceeded with url: /api/chat (Caused by NewConnectionError("HTTPConnection(host='localhost', port=11434): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it"))); attempting cloud fallback...
+[VOICE SERVICE] Synthesized speech using edge-tts (ar-EG-SalmaNeural) -> tts_a77038a1b09b4ae491dbaf5779acc1e0.mp3
+INFO:     127.0.0.1:52692 - "OPTIONS /api/archive/share/1 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52692 - "GET /api/archive/share/1 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52335 - "GET /api/archive/view/ddMtERKPFOiwvnNOAQ18PGrT42fvs18c HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:52335 - "GET /favicon.ico HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:65383 - "GET /api/archive/view/ddMtERKPFOiwvnNOAQ18PGrT42fvs18c HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:56505 - "OPTIONS /api/services HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56505 - "GET /api/services HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56030 - "OPTIONS /api/services/CSOFA-MARRIAGE-CERTIFICATE/form HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56030 - "GET /api/services/CSOFA-MARRIAGE-CERTIFICATE/form HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56030 - "OPTIONS /api/voice/tts HTTP/1.1" 200 OK
+[VOICE TTS] Received request - text length: 50, language: 'ar'
+[VOICE SERVICE] Synthesized speech using edge-tts (ar-EG-SalmaNeural) -> tts_f3d5d76708594479bbd7da8080568a05.mp3
+INFO:     127.0.0.1:56030 - "POST /api/voice/tts HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53543 - "GET /uploads/1/tts_f3d5d76708594479bbd7da8080568a05.mp3 HTTP/1.1" 206 Partial Content
+[VOICE SERVICE] Transcribed audio via Groq Whisper API -> 'رخصة المستنمسة.'
+[AI SERVICE] Ollama connection/timeout for 'qwen2.5:7b-egypt' (HTTPConnectionPool(host='localhost', port=11434): Max retries exceeded with url: /api/chat (Caused by NewConnectionError("HTTPConnection(host='localhost', port=11434): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it"))). Bypassing model retry loop.
+[AI SERVICE] Local Ollama (qwen2.5:7b-egypt) unavailable (HTTPConnectionPool(host='localhost', port=11434): Max retries exceeded with url: /api/chat (Caused by NewConnectionError("HTTPConnection(host='localhost', port=11434): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it"))); attempting cloud fallback...
+[VOICE SERVICE] Synthesized speech using edge-tts (ar-EG-SalmaNeural) -> tts_cfd36a78ee724547831fc350d59a0a33.mp3
+INFO:     127.0.0.1:62077 - "POST /api/ai/ask HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62077 - "OPTIONS /api/services/user/applications HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53748 - "OPTIONS /api/reminders/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51792 - "OPTIONS /api/documents/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62077 - "OPTIONS /api/reminders/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53748 - "OPTIONS /api/auth/me HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56243 - "GET /api/services HTTP/1.1" 200 OK
 [VOICE TTS] Received request - text length: 27, language: 'ar'
-[VOICE SERVICE] Synthesized speech using edge-tts (ar-EG-SalmaNeural) -> tts_20e14187f5b94631b47ab74524fde713.mp3
-INFO:     127.0.0.1:53565 - "POST /api/voice/tts HTTP/1.1" 200 OK
+[VOICE SERVICE] Synthesized speech using edge-tts (ar-EG-SalmaNeural) -> tts_9097e17d6f0741938ebbaebcd228f942.mp3
+INFO:     127.0.0.1:64193 - "POST /api/voice/tts HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50597 - "GET /api/services/CSOFA-MARRIAGE-CERTIFICATE/form HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62077 - "GET /api/reminders/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51792 - "GET /api/services/user/applications HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53748 - "GET /api/documents/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56243 - "GET /api/auth/me HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57210 - "GET /uploads/1/tts_9097e17d6f0741938ebbaebcd228f942.mp3 HTTP/1.1" 206 Partial Content
+INFO:     127.0.0.1:50597 - "GET /api/reminders/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59770 - "OPTIONS /api/documents HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59770 - "GET /api/documents HTTP/1.1" 307 Temporary Redirect
+INFO:     127.0.0.1:59770 - "GET /api/documents/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55142 - "GET /api/services HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55099 - "OPTIONS /api/services/CSOFA-DEATH-CERTIFICATE/form HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55099 - "GET /api/services/CSOFA-DEATH-CERTIFICATE/form HTTP/1.1" 200 OK
+[VOICE TTS] Received request - text length: 50, language: 'ar'
+[VOICE SERVICE] Synthesized speech using edge-tts (ar-EG-SalmaNeural) -> tts_973892167d14411b925f335bc50f20ed.mp3
+INFO:     127.0.0.1:55099 - "POST /api/voice/tts HTTP/1.1" 200 OK
+WARNING:  WatchFiles detected changes in 'app\services\legacy.py'. Reloading...
+ [VOICE TTS] Received request - text length: 50, language: 'ar'
+[VOICE SERVICE] Synthesized speech using edge-tts (ar-EG-SalmaNeural) -> tts_627ea4377d9940d19f5b1292ec0640e6.mp3
+INFO:     127.0.0.1:59118 - "POST /api/voice/tts HTTP/1.1" 200 OK
+[VOICE TTS] Received request - text length: 50, language: 'ar'
+[VOICE SERVICE] Synthesized speech using edge-tts (ar-EG-SalmaNeural) -> tts_ba95400a17764cb9b6252cf88b2c2d74.mp3
+[VOICE TTS] Received request - text length: 50, language: 'ar'
+[VOICE SERVICE] Synthesized speech using edge-tts (ar-EG-SalmaNeural) -> tts_2ea5160b07ce4dcbbf146e80b4b23ab3.mp3
+INFO:     127.0.0.1:54369 - "GET /api/reminders/ HTTP/1.1" 200 OK
 [VOICE TTS] Received request - text length: 27, language: 'ar'
-[VOICE SERVICE] Synthesized speech using edge-tts (ar-EG-SalmaNeural) -> tts_3546859f8a094d1a89a3a42e77bb320c.mp3
-INFO:     127.0.0.1:53565 - "POST /api/voice/tts HTTP/1.1" 200 OK
-INFO:     127.0.0.1:60521 - "GET /uploads/2/tts_3546859f8a094d1a89a3a42e77bb320c.mp3 HTTP/1.1" 206 Partial Content
-INFO:     127.0.0.1:63566 - "GET /api/archive/share/33 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:59889 - "GET /api/archive/view/1EIht3_kSZJaTHBwHZLwRL7twmUusv-K HTTP/1.1" 200 OK
-INFO:     127.0.0.1:59889 - "GET /favicon.ico HTTP/1.1" 404 Not Found
-WARNING:  WatchFiles detected changes in 'app\services\archive_service.py'. Reloading...
- 
+[VOICE SERVICE] Synthesized speech using edge-tts (ar-EG-SalmaNeural) -> tts_a274549591e640f88c0b0ce0f1361e89.mp3
+INFO:     127.0.0.1:55075 - "POST /api/voice/tts HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59562 - "OPTIONS /api/ai/ask HTTP/1.1" 200 OK
+[VOICE TTS] Received request - text length: 27, language: 'ar'
+[VOICE SERVICE] Synthesized speech using edge-tts (ar-EG-SalmaNeural) -> tts_4bad2e8999ca4877bee3135e4ba970f6.mp3
+INFO:     127.0.0.1:53864 - "POST /api/voice/tts HTTP/1.1" 200 OK
+[VOICE SERVICE] Transcribed audio via Groq Whisper API -> 'لا خسر مستند.'
+[AI SERVICE] Ollama connection/timeout for 'qwen2.5:7b-egypt' (HTTPConnectionPool(host='localhost', port=11434): Max retries exceeded with url: /api/chat (Caused by NewConnectionError("HTTPConnection(host='localhost', port=11434): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it"))). Bypassing model retry loop.
+[AI SERVICE] Local Ollama (qwen2.5:7b-egypt) unavailable (HTTPConnectionPool(host='localhost', port=11434): Max retries exceeded with url: /api/chat (Caused by NewConnectionError("HTTPConnection(host='localhost', port=11434): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it"))); attempting cloud fallback...
+[VOICE SERVICE] Synthesized speech using edge-tts (ar-EG-SalmaNeural) -> tts_5972c3b8c35e498d931b9571e33c66aa.mp3
+INFO:     127.0.0.1:59562 - "POST /api/ai/ask HTTP/1.1" 200 OK
+[VOICE TTS] Received request - text length: 27, language: 'ar'
+[VOICE SERVICE] Synthesized speech using edge-tts (ar-EG-SalmaNeural) -> tts_8b47a520293f46edbad549eb5e7a56ff.mp3
+[VOICE TTS] Received request - text length: 27, language: 'ar'
+[VOICE SERVICE] Synthesized speech using edge-tts (ar-EG-SalmaNeural) -> tts_20524caee9ef459cb2ace2655c7c2d14.mp3
+INFO:     127.0.0.1:53153 - "GET /api/auth/me HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64314 - "GET /api/documents/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55491 - "GET /api/services/user/applications HTTP/1.1" 200 OK
