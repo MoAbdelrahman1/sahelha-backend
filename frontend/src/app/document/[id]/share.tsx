@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { ActivityIndicator, Image, Pressable, Share, Text, View } from "react-native";
+import { ActivityIndicator, Image, Linking, Pressable, Share, Text, View } from "react-native";
 import { useLocalSearchParams } from "expo-router";
 import * as Clipboard from "expo-clipboard";
 
@@ -57,6 +57,14 @@ export default function DocumentShareScreen() {
     }
   };
 
+  // The link now points at a real, publicly downloadable PDF of the document
+  // (GET /api/archive/view/{token} on the backend), not a placeholder page,
+  // so it can be opened directly instead of only copied/relayed.
+  const openPdf = () => {
+    if (!share) return;
+    Linking.openURL(share.share_url).catch(() => showToast("تعذّر فتح ملف PDF"));
+  };
+
   return (
     <View style={{ flex: 1, backgroundColor: c.pageBg }}>
       <AppHeader title="مشاركة المستند" showBack />
@@ -79,6 +87,12 @@ export default function DocumentShareScreen() {
               resizeMode="contain"
             />
 
+            <Text
+              style={{ fontFamily: "IBMPlexSansArabic_700Bold", fontSize: 13, color: c.secondary, textAlign: "center" }}
+            >
+              رابط تحميل المستند بصيغة PDF
+            </Text>
+
             <View
               style={{
                 width: "100%",
@@ -95,6 +109,22 @@ export default function DocumentShareScreen() {
                 {share.share_url}
               </Text>
             </View>
+
+            <Pressable
+              onPress={openPdf}
+              accessibilityRole="button"
+              accessibilityLabel="فتح المستند كملف PDF"
+              style={{
+                width: "100%",
+                minHeight: 56,
+                borderRadius: 12,
+                backgroundColor: c.primaryBg,
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <Text style={{ fontFamily: "Cairo_800ExtraBold", fontSize: 15, color: c.primaryFg }}>فتح ملف PDF</Text>
+            </Pressable>
 
             <View style={{ flexDirection: "row-reverse", gap: 10, width: "100%" }}>
               <Pressable
@@ -121,12 +151,13 @@ export default function DocumentShareScreen() {
                   flex: 1,
                   minHeight: 56,
                   borderRadius: 12,
-                  backgroundColor: c.primaryBg,
+                  borderWidth: 2,
+                  borderColor: c.ink,
                   alignItems: "center",
                   justifyContent: "center",
                 }}
               >
-                <Text style={{ fontFamily: "Cairo_800ExtraBold", fontSize: 15, color: c.primaryFg }}>مشاركة</Text>
+                <Text style={{ fontFamily: "IBMPlexSansArabic_700Bold", fontSize: 15, color: c.ink }}>مشاركة</Text>
               </Pressable>
             </View>
           </>
