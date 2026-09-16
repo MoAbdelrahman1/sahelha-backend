@@ -114,7 +114,7 @@ function AppHeader({ title }: { title: string }) {
 }
 
 // ─── DocumentCard (exact match with sahelha-backend/frontend DocumentCard) ────
-function DocumentCard({ doc }: { doc: ScannedDocument }) {
+function DocumentCard({ doc, onPress }: { doc: ScannedDocument; onPress: () => void }) {
   const accents = DOC_TYPE_ACCENTS[doc.doc_type ?? "unknown"] ?? DOC_TYPE_ACCENTS.unknown;
   const status  = STATUS_META[doc.status] ?? STATUS_META.done;
   const typeLabel = DOC_TYPE_LABELS[doc.doc_type ?? "unknown"] ?? "مستند";
@@ -123,7 +123,10 @@ function DocumentCard({ doc }: { doc: ScannedDocument }) {
     : (doc.ai_summary || "");
 
   return (
-    <View
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={`${typeLabel}، ${status.label}`}
       style={{
         flexDirection: "row-reverse",
         alignItems: "center",
@@ -191,7 +194,7 @@ function DocumentCard({ doc }: { doc: ScannedDocument }) {
           flexShrink: 0,
         }}
       />
-    </View>
+    </Pressable>
   );
 }
 
@@ -523,7 +526,7 @@ export default function ScanScreen() {
         ) : (
           <View style={{ gap: 10 }}>
             {documents.map((doc) => (
-              <DocumentCard key={doc.id} doc={doc} />
+              <DocumentCard key={doc.id} doc={doc} onPress={() => router.push(`/document/${doc.id}`)} />
             ))}
           </View>
         )}

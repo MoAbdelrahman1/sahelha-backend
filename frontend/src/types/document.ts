@@ -1,6 +1,5 @@
-// Mirrors the real backend shape (API_DOCUMENTATION.md §5, §13) so swapping the
-// demo data source (src/features/documents/demoData.ts) for a real
-// GET /api/documents/ call later is a drop-in — no shape changes needed upstream.
+// Mirrors the real backend shape (API_DOCUMENTATION.md §5, §13) — this is the
+// exact shape returned by GET /api/documents/ (see src/store/documentsStore.tsx).
 
 export type DocStatus = "processing" | "done" | "failed";
 

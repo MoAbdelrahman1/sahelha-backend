@@ -1,82 +1,68 @@
 import React, { useState } from "react";
-import { AccessibilityInfo, Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams } from "expo-router";
-import * as Haptics from "expo-haptics";
 
 import { AppHeader } from "@/components/ui/AppHeader";
 import { useAppearance } from "@/store/appearanceStore";
 import { useDocuments } from "@/store/documentsStore";
-import { useToast } from "@/store/toastStore";
 import { palette } from "@/styles/theme";
-import { CHAT_SEED } from "@/features/documents/demoData";
 import { DOC_TYPE_LABELS } from "@/types/document";
-
-type Message = { from: "assistant" | "user"; text: string };
-
-const DEMO_REPLY = "تمام، هحاول أساعدك في ده. تقدر كمان تسمع الرد بالصوت من زر الاستماع.";
+import { useVoiceAssistant } from "@/features/voice/useVoiceAssistant";
 
 // The emotional core of the product — a conversation, not a form. Chat-bubble
 // layout with every bubble also announced/playable as audio (per the brief);
 // press-and-hold recording is the primary input path, typing is the
-// secondary one. Demo conversation only for this pass — the real backend call
-// is POST /api/ai/ask, scoped to this document_id.
+// secondary one. Wired to POST /api/ai/ask, scoped to this document_id, via
+// useVoiceAssistant (real recording, real OCR-grounded answers, real TTS).
 export default function DocumentChatScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { highContrast, haptics } = useAppearance();
+  const { highContrast } = useAppearance();
   const { getDocument } = useDocuments();
-  const { showToast } = useToast();
   const c = palette(highContrast);
   const docId = Number(id);
   const doc = getDocument(docId);
   const typeLabel = doc?.doc_type ? DOC_TYPE_LABELS[doc.doc_type] : "المستند";
 
-  const [messages, setMessages] = useState<Message[]>(
-    CHAT_SEED[docId] ?? [{ from: "assistant", text: "أهلاً، اسألني أي سؤال عن المستند ده." }]
-  );
-  const [draft, setDraft] = useState("");
-  const [recording, setRecording] = useState(false);
-  const [typing, setTyping] = useState(false);
+  const {
+    messages,
+    assistantState,
+    errorMessage,
+    speakingId,
+    startListening,
+    stopListeningAndAsk,
+    cancelRecording,
+    sendTextMessage,
+    replayMessageAudio,
+  } = useVoiceAssistant(Number.isFinite(docId) ? docId : null);
 
-  const respondTo = (userText: string) => {
-    setMessages((m) => [...m, { from: "user", text: userText }]);
-    setTyping(true);
-    setTimeout(() => {
-      setMessages((m) => [...m, { from: "assistant", text: DEMO_REPLY }]);
-      setTyping(false);
-    }, 1100);
-  };
+  const [draft, setDraft] = useState("");
+  const recording = assistantState === "recording";
+  const typing = assistantState === "thinking";
 
   const sendText = () => {
     const text = draft.trim();
     if (!text) return;
     setDraft("");
-    respondTo(text);
+    sendTextMessage(text);
   };
 
   const toggleRecording = () => {
     if (recording) {
-      setRecording(false);
-      return;
+      stopListeningAndAsk();
+    } else {
+      startListening();
     }
-    setRecording(true);
-    if (haptics) Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
-    AccessibilityInfo.announceForAccessibility("بدأ التسجيل");
-    setTimeout(() => {
-      setRecording(false);
-      if (haptics) Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-      respondTo("وده صادر منين؟");
-    }, 1300);
   };
 
   return (
     <View style={{ flex: 1, backgroundColor: c.pageBg }}>
       <AppHeader title={`اسأل عن: ${typeLabel}`} showBack />
       <ScrollView contentContainerStyle={{ padding: 18, gap: 12, flexGrow: 1 }}>
-        {messages.map((m, i) => {
-          const isUser = m.from === "user";
+        {messages.map((m) => {
+          const isUser = m.role === "user";
           return (
-            <View key={i} style={{ flexDirection: "row", justifyContent: isUser ? "flex-start" : "flex-end" }}>
+            <View key={m.id} style={{ flexDirection: "row", justifyContent: isUser ? "flex-start" : "flex-end" }}>
               <View
                 style={{
                   maxWidth: "78%",
@@ -100,18 +86,20 @@ export default function DocumentChatScreen() {
                 >
                   {m.text}
                 </Text>
-                <Pressable onPress={() => showToast("جاري تشغيل الرد صوتيًا")} accessibilityRole="button" accessibilityLabel="استماع">
-                  <Text
-                    style={{
-                      fontFamily: "IBMPlexSansArabic_700Bold",
-                      fontSize: 12,
-                      color: isUser ? c.primaryFg : c.ink,
-                      textDecorationLine: "underline",
-                    }}
-                  >
-                    ▶ استماع
-                  </Text>
-                </Pressable>
+                {!isUser ? (
+                  <Pressable onPress={() => replayMessageAudio(m)} accessibilityRole="button" accessibilityLabel="استماع">
+                    <Text
+                      style={{
+                        fontFamily: "IBMPlexSansArabic_700Bold",
+                        fontSize: 12,
+                        color: c.ink,
+                        textDecorationLine: "underline",
+                      }}
+                    >
+                      {speakingId === m.id ? "◼ إيقاف" : "▶ استماع"}
+                    </Text>
+                  </Pressable>
+                ) : null}
               </View>
             </View>
           );
@@ -125,11 +113,21 @@ export default function DocumentChatScreen() {
             </View>
           </View>
         ) : null}
+        {errorMessage ? (
+          <View style={{ flexDirection: "row", justifyContent: "flex-end" }}>
+            <View style={{ paddingHorizontal: 14, paddingVertical: 10, borderRadius: 16, backgroundColor: "#FDECEA", borderWidth: 1, borderColor: "#B3261E" }}>
+              <Text style={{ fontFamily: "IBMPlexSansArabic_600SemiBold", fontSize: 13, color: "#B3261E", textAlign: "right" }}>
+                {errorMessage}
+              </Text>
+            </View>
+          </View>
+        ) : null}
       </ScrollView>
 
       <View style={{ padding: 18, borderTopWidth: 1, borderTopColor: c.border, alignItems: "center", gap: 12 }}>
         <Pressable
           onPress={toggleRecording}
+          onLongPress={cancelRecording}
           accessibilityRole="button"
           accessibilityLabel={recording ? "إيقاف التسجيل" : "ابدأ التسجيل الصوتي"}
           style={{
