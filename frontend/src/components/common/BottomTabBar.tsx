@@ -21,8 +21,7 @@ const TAB_META: Record<string, { label: string; icon: keyof typeof Ionicons.glyp
   settings: { label: "الإعدادات", icon: "settings-outline" },
 };
 
-// Custom Tabs `tabBar` renderer: Home · Applications · Archive · Reminders · Settings, plus a
-// large floating center mic button
+// Custom Tabs `tabBar` renderer: Archive · Scan · (mic) · Applications · Reminders · Settings
 export function BottomTabBar({ state, navigation }: TabBarProps) {
   const router = useRouter();
   const { highContrast } = useAppearance();
@@ -93,6 +92,7 @@ export function BottomTabBar({ state, navigation }: TabBarProps) {
       </Pressable>
 
       {renderTab("applications")}
+      {renderTab("reminders")}
       {renderTab("settings")}
     </View>
   );
