@@ -1,11 +1,15 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
+# app.config loads .env before anything reads os.getenv(), so import it
+# first to guarantee ALLOWED_ORIGINS (read below) sees .env values too.
+import app.config  # noqa: F401
 from app.api import ai_assistant, archive, auth, documents, legacy, reminders, services, voice
 from app.db import SCHEMA_SQL, init_db
 from app.services.scheduler import start_reminder_scheduler

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import sqlite3
 from pathlib import Path
 from typing import Any
@@ -16,6 +17,7 @@ from app.services.pipeline import process_document_pipeline
 from app.services.reminder_service import create_reminder_from_expiry
 
 router = APIRouter()
+logger = logging.getLogger("documents")
 
 
 def _row_to_document(row: sqlite3.Row) -> dict[str, Any]:
@@ -160,7 +162,13 @@ def _run_pipeline_and_persist(doc_id: int, image_path: str, user_id: int) -> Non
 
     expiry_date = result.get("expiry_date")
     if expiry_date:
-        create_reminder_from_expiry(doc_id, user_id, expiry_date)
+        try:
+            create_reminder_from_expiry(doc_id, user_id, expiry_date)
+        except Exception:
+            # Never let a bad/unparseable expiry_date value take down the
+            # whole background pipeline task silently — the document itself
+            # already persisted above, only the auto-reminder is at risk.
+            logger.exception("Failed to create auto-reminder for document %s", doc_id)
 
 
 @router.post("/upload", response_model=DocumentUploadResponse)

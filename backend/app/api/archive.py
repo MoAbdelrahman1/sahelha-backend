@@ -2,13 +2,18 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 
 from app.api.documents import _row_to_document
 from app.core.security import get_current_user
 from app.db import db_connection
 from app.schemas import UserDocumentResponse
-from app.services.archive_service import build_share_url, generate_qr_base64, search_documents
+from app.services.archive_service import (
+    generate_qr_base64,
+    get_or_create_share_token,
+    render_document_pdf,
+    search_documents,
+)
 
 router = APIRouter()
 
@@ -25,7 +30,9 @@ def search(
 
 
 @router.get("/share/{doc_id}")
-def share_document(doc_id: int, current_user: dict[str, Any] = Depends(get_current_user)) -> dict[str, str]:
+def share_document(
+    doc_id: int, request: Request, current_user: dict[str, Any] = Depends(get_current_user)
+) -> dict[str, str]:
     with db_connection() as connection:
         row = connection.execute(
             "SELECT id FROM documents WHERE id = ? AND user_id = ?",
@@ -35,5 +42,34 @@ def share_document(doc_id: int, current_user: dict[str, Any] = Depends(get_curre
     if row is None:
         raise HTTPException(status_code=404, detail="Document not found")
 
-    share_url = build_share_url(doc_id)
+    token = get_or_create_share_token(doc_id)
+    # Built from the incoming request's own host, not a hardcoded domain, so
+    # the link/QR actually resolves to this backend (LAN address, tunnel,
+    # whatever the caller is really reaching us on) instead of a placeholder
+    # that serves nothing.
+    share_url = f"{str(request.base_url).rstrip('/')}/api/archive/view/{token}"
     return {"qr_image_base64": generate_qr_base64(share_url), "share_url": share_url}
+
+
+@router.get("/view/{token}")
+def view_shared_document(token: str) -> Response:
+    """Public, unauthenticated: this is the actual QR/link target, opened by
+    whoever the document owner shared it with, not by the app itself. Serves
+    the document re-rendered as a real PDF instead of a page that doesn't
+    exist, so scanning the QR downloads something usable."""
+    with db_connection() as connection:
+        row = connection.execute("SELECT * FROM documents WHERE share_token = ?", (token,)).fetchone()
+
+    if row is None:
+        raise HTTPException(status_code=404, detail="Shared document not found")
+
+    try:
+        pdf_bytes = render_document_pdf(row)
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Source image not found")
+
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'inline; filename="document-{row["id"]}.pdf"'},
+    )

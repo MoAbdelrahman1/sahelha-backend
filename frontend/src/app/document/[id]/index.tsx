@@ -1,20 +1,18 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 
 import { AppHeader } from "@/components/ui/AppHeader";
+import { useTtsPlayer } from "@/features/voice/useTtsPlayer";
 import { useAppearance } from "@/store/appearanceStore";
 import { useDocuments } from "@/store/documentsStore";
 import { useToast } from "@/store/toastStore";
 import { palette } from "@/styles/theme";
 import { DOC_TYPE_LABELS } from "@/types/document";
 
-// Leads with the spoken summary (auto-play is a real-backend/TTS concern, out
-// of scope for this demo-data pass — the "plays automatically" note and
-// replay control are shown as designed either way), then structured fields,
-// then the "ask about this document" CTA into the doc-scoped AI assistant,
-// then share/delete with a spoken confirm step before delete
-// (SAHELHA_DESIGN_BRIEF.md §6.5).
+// Leads with the spoken summary, then structured fields, then the "ask about
+// this document" CTA into the doc-scoped AI assistant, then share/delete with
+// a spoken confirm step before delete (SAHELHA_DESIGN_BRIEF.md §6.5).
 export default function DocumentDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
@@ -25,6 +23,18 @@ export default function DocumentDetailScreen() {
   const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   const doc = getDocument(Number(id));
+
+  const { speakTextContent, isPlaying } = useTtsPlayer({
+    onError: (messageAr) => showToast(messageAr),
+  });
+  const autoPlayedIdRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (doc?.status === "done" && doc.ai_summary && autoPlayedIdRef.current !== doc.id) {
+      autoPlayedIdRef.current = doc.id;
+      speakTextContent(doc.ai_summary, "summary");
+    }
+  }, [doc?.status, doc?.ai_summary, doc?.id, speakTextContent]);
 
   if (!doc) {
     return (
@@ -79,7 +89,8 @@ export default function DocumentDetailScreen() {
               {doc.ai_summary}
             </Text>
             <Pressable
-              onPress={() => showToast("جاري تشغيل الملخص صوتيًا")}
+              onPress={() => speakTextContent(doc.ai_summary as string, "summary")}
+              disabled={isPlaying}
               accessibilityRole="button"
               accessibilityLabel="إعادة تشغيل الصوت"
               style={{
