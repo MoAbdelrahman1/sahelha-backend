@@ -315,7 +315,10 @@ export default function ScanScreen() {
 
   const loadDocuments = useCallback(async () => {
     try {
-      const docs = await fetchDocuments();
+      const timeoutPromise = new Promise<ScannedDocument[]>((resolve) =>
+        setTimeout(() => resolve([]), 3500)
+      );
+      const docs = await Promise.race([fetchDocuments(), timeoutPromise]);
       console.log("[DOCS] loaded:", docs.length);
       setDocuments(docs);
     } catch (e) {

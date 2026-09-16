@@ -18,10 +18,10 @@ from app.services.reminder_service import create_reminder_from_expiry
 router = APIRouter()
 
 
-def _row_to_document(row: sqlite3.Row) -> dict[str, Any]:
+def _row_to_document(row: sqlite3.Row, conn: sqlite3.Connection | None = None) -> dict[str, Any]:
     image_path = row["image_path"] if "image_path" in row.keys() else None
     document_type = row["document_type"]
-    
+
     entities = {}
     if "entities_json" in row.keys() and row["entities_json"]:
         try:
@@ -31,12 +31,19 @@ def _row_to_document(row: sqlite3.Row) -> dict[str, Any]:
 
     if not entities:
         try:
-            with db_connection() as connection:
-                f_rows = connection.execute(
+            if conn is not None:
+                f_rows = conn.execute(
                     "SELECT field_key, field_value FROM document_fields WHERE document_id = ?",
                     (row["id"],),
                 ).fetchall()
                 entities = {r["field_key"]: str(r["field_value"]) for r in f_rows}
+            else:
+                with db_connection() as connection:
+                    f_rows = connection.execute(
+                        "SELECT field_key, field_value FROM document_fields WHERE document_id = ?",
+                        (row["id"],),
+                    ).fetchall()
+                    entities = {r["field_key"]: str(r["field_value"]) for r in f_rows}
         except Exception:
             pass
 
@@ -133,7 +140,7 @@ def _run_pipeline_and_persist(doc_id: int, image_path: str, user_id: int) -> Non
                 doc_id,
             ),
         )
-        
+
         # Populate document_fields table with extracted entities
         entities = result.get("entities", {})
         if isinstance(entities, dict) and entities:
@@ -146,7 +153,7 @@ def _run_pipeline_and_persist(doc_id: int, image_path: str, user_id: int) -> Non
                         "governorate": "المحافظة"
                     }.get(key, key)
                     fields_to_insert.append((doc_id, key, label_ar, val))
-            
+
             if fields_to_insert:
                 connection.executemany(
                     """
@@ -222,7 +229,7 @@ def list_documents(current_user: dict[str, Any] | None = Depends(get_optional_cu
             "SELECT * FROM documents WHERE user_id = ? OR user_id IS NULL ORDER BY id DESC",
             (user_id,),
         ).fetchall()
-    return [_row_to_document(row) for row in rows]
+        return [_row_to_document(row, conn=connection) for row in rows]
 
 
 @router.get("/{doc_id}", response_model=UserDocumentResponse)

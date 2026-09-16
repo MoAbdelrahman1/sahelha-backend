@@ -103,7 +103,9 @@ export async function speakText(text: string): Promise<SpeakTextResponse> {
 // newest first. Returns [] if the backend is unreachable.
 export async function fetchDocuments(): Promise<ScannedDocument[]> {
   try {
-    const { data } = await apiClient.get<ScannedDocument[]>("/api/documents");
+    const { data } = await apiClient.get<ScannedDocument[]>("/api/documents", {
+      timeout: 3000,
+    });
     return Array.isArray(data) ? data : [];
   } catch {
     return [];
