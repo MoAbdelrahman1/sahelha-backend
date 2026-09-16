@@ -115,6 +115,33 @@ def _run_pipeline_and_persist(doc_id: int, image_path: str, user_id: int) -> Non
         # Enforce 1 National ID document limit per user account
         if doc_type_val == "national_id":
             connection.execute(
+                """
+                UPDATE chat_sessions SET document_id = NULL
+                WHERE document_id IN (
+                    SELECT id FROM documents WHERE user_id = ? AND document_type = 'national_id' AND id != ?
+                )
+                """,
+                (user_id, doc_id),
+            )
+            connection.execute(
+                """
+                DELETE FROM document_fields
+                WHERE document_id IN (
+                    SELECT id FROM documents WHERE user_id = ? AND document_type = 'national_id' AND id != ?
+                )
+                """,
+                (user_id, doc_id),
+            )
+            connection.execute(
+                """
+                DELETE FROM reminders
+                WHERE document_id IN (
+                    SELECT id FROM documents WHERE user_id = ? AND document_type = 'national_id' AND id != ?
+                )
+                """,
+                (user_id, doc_id),
+            )
+            connection.execute(
                 "DELETE FROM documents WHERE user_id = ? AND document_type = 'national_id' AND id != ?",
                 (user_id, doc_id),
             )
@@ -255,6 +282,9 @@ def delete_document(doc_id: int, current_user: dict[str, Any] | None = Depends(g
         if row is None:
             raise HTTPException(status_code=404, detail="Document not found")
 
+        connection.execute("UPDATE chat_sessions SET document_id = NULL WHERE document_id = ?", (doc_id,))
+        connection.execute("DELETE FROM document_fields WHERE document_id = ?", (doc_id,))
+        connection.execute("DELETE FROM reminders WHERE document_id = ?", (doc_id,))
         connection.execute("DELETE FROM documents WHERE id = ?", (doc_id,))
         connection.commit()
 

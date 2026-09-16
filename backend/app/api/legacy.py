@@ -251,6 +251,33 @@ async def analyze_document(
     if doc_type == "national_id":
         with db_connection() as connection:
             connection.execute(
+                """
+                UPDATE chat_sessions SET document_id = NULL
+                WHERE document_id IN (
+                    SELECT id FROM documents WHERE user_id = ? AND (document_type = 'national_id' OR document_type = 'بطاقة رقم قومي')
+                )
+                """,
+                (user_id,),
+            )
+            connection.execute(
+                """
+                DELETE FROM document_fields
+                WHERE document_id IN (
+                    SELECT id FROM documents WHERE user_id = ? AND (document_type = 'national_id' OR document_type = 'بطاقة رقم قومي')
+                )
+                """,
+                (user_id,),
+            )
+            connection.execute(
+                """
+                DELETE FROM reminders
+                WHERE document_id IN (
+                    SELECT id FROM documents WHERE user_id = ? AND (document_type = 'national_id' OR document_type = 'بطاقة رقم قومي')
+                )
+                """,
+                (user_id,),
+            )
+            connection.execute(
                 "DELETE FROM documents WHERE user_id = ? AND (document_type = 'national_id' OR document_type = 'بطاقة رقم قومي')",
                 (user_id,),
             )
