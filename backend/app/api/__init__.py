@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
 
+from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -9,6 +11,12 @@ from fastapi.staticfiles import StaticFiles
 from app.api import ai_assistant, archive, auth, documents, legacy, reminders, services, voice
 from app.db import SCHEMA_SQL, init_db
 from app.services.scheduler import start_reminder_scheduler
+
+# ALLOWED_ORIGINS is read below via os.getenv — without this, it only ever
+# sees whatever was already in the shell's environment when uvicorn started,
+# never the .env file, so editing .env silently had no effect.
+_ENV_PATH = Path(__file__).parent.parent.parent / ".env"
+load_dotenv(dotenv_path=_ENV_PATH if _ENV_PATH.exists() else None, override=True)
 
 app = FastAPI(title="Sahelha Backend", version="0.1.0")
 
