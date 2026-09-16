@@ -113,8 +113,10 @@ function AppHeader({ title }: { title: string }) {
   );
 }
 
-// ─── DocumentCard (exact match with sahelha-backend/frontend DocumentCard) ────
+// ─── DocumentCard (interactive, expandable card with actions) ────────────────
 function DocumentCard({ doc }: { doc: ScannedDocument }) {
+  const router = useRouter();
+  const [expanded, setExpanded] = useState(false);
   const accents = DOC_TYPE_ACCENTS[doc.doc_type ?? "unknown"] ?? DOC_TYPE_ACCENTS.unknown;
   const status  = STATUS_META[doc.status] ?? STATUS_META.done;
   const typeLabel = DOC_TYPE_LABELS[doc.doc_type ?? "unknown"] ?? "مستند";
@@ -125,72 +127,130 @@ function DocumentCard({ doc }: { doc: ScannedDocument }) {
   return (
     <View
       style={{
-        flexDirection: "row-reverse",
-        alignItems: "center",
-        gap: 14,
-        width: "100%",
-        padding: 16,
         borderRadius: 16,
-        borderWidth: 1,
-        borderColor: BORDER,
+        borderWidth: 1.5,
+        borderColor: expanded ? NAVY : BORDER,
         backgroundColor: WHITE,
+        overflow: "hidden",
       }}
     >
-      {/* Accent icon tile */}
-      <View
+      <Pressable
+        onPress={() => setExpanded((v) => !v)}
+        accessibilityRole="button"
+        accessibilityLabel={`مستند ${typeLabel}`}
         style={{
-          width: 54,
-          height: 54,
-          borderRadius: 14,
-          backgroundColor: accents.accentSoft,
+          flexDirection: "row-reverse",
           alignItems: "center",
-          justifyContent: "center",
-          flexShrink: 0,
+          gap: 14,
+          width: "100%",
+          padding: 16,
         }}
       >
+        {/* Accent icon tile */}
         <View
           style={{
-            width: 24,
-            height: 30,
-            borderWidth: 2.5,
-            borderColor: accents.accent,
-            borderRadius: 3,
+            width: 54,
+            height: 54,
+            borderRadius: 14,
+            backgroundColor: accents.accentSoft,
+            alignItems: "center",
+            justifyContent: "center",
+            flexShrink: 0,
           }}
-        />
-      </View>
-
-      {/* Text block */}
-      <View style={{ flex: 1, minWidth: 0, gap: 4 }}>
-        <Text style={{ fontSize: 15, fontWeight: "700", color: INK, textAlign: "right" }}>
-          {typeLabel}
-        </Text>
-        {summary ? (
-          <Text numberOfLines={1} style={{ fontSize: 13.5, color: SECONDARY, textAlign: "right" }}>
-            {summary}
-          </Text>
-        ) : null}
-        <View style={{ flexDirection: "row-reverse", alignItems: "center", gap: 5, marginTop: 2, flexWrap: "wrap" }}>
-          <Text style={{ fontSize: 12.5, fontWeight: "700", color: status.color }}>
-            {status.symbol}
-          </Text>
-          <Text style={{ fontSize: 12.5, fontWeight: "700", color: status.color }}>
-            {status.label}
-          </Text>
+        >
+          <Ionicons name="document-text" size={28} color={accents.accent} />
         </View>
-      </View>
 
-      {/* Chevron */}
-      <View
-        style={{
-          width: 9,
-          height: 9,
-          borderTopWidth: 2.5,
-          borderRightWidth: 2.5,
-          borderColor: SECONDARY,
-          transform: [{ rotate: "-45deg" }],
-          flexShrink: 0,
-        }}
-      />
+        {/* Text block */}
+        <View style={{ flex: 1, minWidth: 0, gap: 4 }}>
+          <Text style={{ fontSize: 16, fontWeight: "800", color: INK, textAlign: "right" }}>
+            {typeLabel}
+          </Text>
+          {summary ? (
+            <Text numberOfLines={expanded ? 4 : 1} style={{ fontSize: 13.5, color: SECONDARY, textAlign: "right", lineHeight: 20 }}>
+              {summary}
+            </Text>
+          ) : null}
+          <View style={{ flexDirection: "row-reverse", alignItems: "center", gap: 5, marginTop: 2, flexWrap: "wrap" }}>
+            <Text style={{ fontSize: 12.5, fontWeight: "700", color: status.color }}>
+              {status.symbol}
+            </Text>
+            <Text style={{ fontSize: 12.5, fontWeight: "700", color: status.color }}>
+              {status.label}
+            </Text>
+          </View>
+        </View>
+
+        {/* Chevron */}
+        <Ionicons name={expanded ? "chevron-up" : "chevron-down"} size={22} color={NAVY} />
+      </Pressable>
+
+      {/* Expanded Content Card Details & Actions */}
+      {expanded ? (
+        <View
+          style={{
+            borderTopWidth: 1,
+            borderTopColor: BORDER,
+            backgroundColor: SURFACE,
+            padding: 16,
+            gap: 12,
+          }}
+        >
+          {doc.ai_summary ? (
+            <View style={{ backgroundColor: WHITE, borderRadius: 12, padding: 12, borderWidth: 1, borderColor: BORDER }}>
+              <Text style={{ fontSize: 13, fontWeight: "700", color: SECONDARY, textAlign: "right", marginBottom: 4 }}>
+                ملخص الذكاء الاصطناعي:
+              </Text>
+              <Text style={{ fontSize: 14, fontWeight: "600", color: INK, textAlign: "right", lineHeight: 22 }}>
+                {doc.ai_summary}
+              </Text>
+            </View>
+          ) : null}
+
+          {/* Action Buttons */}
+          <View style={{ flexDirection: "row-reverse", gap: 8, flexWrap: "wrap" }}>
+            <Pressable
+              onPress={() => router.push(`/document/${doc.id}`)}
+              style={{
+                flex: 1,
+                minWidth: 130,
+                minHeight: 44,
+                flexDirection: "row-reverse",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 6,
+                borderRadius: 12,
+                backgroundColor: NAVY,
+                paddingHorizontal: 12,
+              }}
+            >
+              <Ionicons name="open-outline" size={18} color={WHITE} />
+              <Text style={{ fontSize: 14, fontWeight: "800", color: WHITE }}>عرض تفاصيل المستند</Text>
+            </Pressable>
+
+            <Pressable
+              onPress={() => router.push(`/document/${doc.id}/chat`)}
+              style={{
+                flex: 1,
+                minWidth: 130,
+                minHeight: 44,
+                flexDirection: "row-reverse",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 6,
+                borderRadius: 12,
+                borderWidth: 1.5,
+                borderColor: NAVY,
+                backgroundColor: WHITE,
+                paddingHorizontal: 12,
+              }}
+            >
+              <Ionicons name="chatbubble-ellipses-outline" size={18} color={NAVY} />
+              <Text style={{ fontSize: 14, fontWeight: "800", color: NAVY }}>اسأل عن المستند 🎙️</Text>
+            </Pressable>
+          </View>
+        </View>
+      ) : null}
     </View>
   );
 }

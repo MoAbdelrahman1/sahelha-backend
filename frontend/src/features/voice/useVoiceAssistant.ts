@@ -62,25 +62,32 @@ export function useVoiceAssistant(initialDocumentId?: number | null) {
     }
 
     try {
-      const res = await askAiVoice({
-        documentId,
-        sessionId,
-        audioUri,
-      });
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("TIMEOUT")), 8000)
+      );
+
+      const res = await Promise.race([
+        askAiVoice({
+          documentId,
+          sessionId,
+          audioUri,
+        }),
+        timeoutPromise,
+      ]);
 
       setSessionId(res.session_id);
 
       const userMsg: ChatMessage = {
         id: `user-${Date.now()}`,
         role: "user",
-        text: res.question,
+        text: res.question || "سؤال صوتي",
         timestamp: new Date(),
       };
 
       const aiMsg: ChatMessage = {
         id: `ai-${Date.now()}`,
         role: "assistant",
-        text: res.answer,
+        text: res.answer || "تمت إجابة طلبك.",
         audioUrl: res.answer_audio_url || undefined,
         serviceId: res.service_id || undefined,
         serviceTitle: res.service_title || undefined,
@@ -90,7 +97,7 @@ export function useVoiceAssistant(initialDocumentId?: number | null) {
       setMessages((prev) => [...prev, userMsg, aiMsg]);
       setAssistantState("idle");
     } catch (error) {
-      const friendlyErr = error instanceof ApiError ? error.friendlyMessageAr : "حدث خطأ أثناء معالجة طلبك الصوتي.";
+      const friendlyErr = error instanceof ApiError ? error.friendlyMessageAr : "حدث خطأ أو تأخر في الاتصال بالمساعد، يرجى المحاولة مرة أخرى.";
       setErrorMessage(friendlyErr);
       setAssistantState("error");
     }
@@ -113,18 +120,25 @@ export function useVoiceAssistant(initialDocumentId?: number | null) {
       setMessages((prev) => [...prev, userMsg]);
 
       try {
-        const res = await askAiVoice({
-          documentId,
-          sessionId,
-          question: questionText.trim(),
-        });
+        const timeoutPromise = new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error("TIMEOUT")), 8000)
+        );
+
+        const res = await Promise.race([
+          askAiVoice({
+            documentId,
+            sessionId,
+            question: questionText.trim(),
+          }),
+          timeoutPromise,
+        ]);
 
         setSessionId(res.session_id);
 
         const aiMsg: ChatMessage = {
           id: `ai-${Date.now()}`,
           role: "assistant",
-          text: res.answer,
+          text: res.answer || "تمت الإجابة على سؤالك.",
           audioUrl: res.answer_audio_url || undefined,
           serviceId: res.service_id || undefined,
           serviceTitle: res.service_title || undefined,
@@ -134,7 +148,7 @@ export function useVoiceAssistant(initialDocumentId?: number | null) {
         setMessages((prev) => [...prev, aiMsg]);
         setAssistantState("idle");
       } catch (error) {
-        const friendlyErr = error instanceof ApiError ? error.friendlyMessageAr : "حدث خطأ أثناء التواصل مع المساعد.";
+        const friendlyErr = error instanceof ApiError ? error.friendlyMessageAr : "تعذّر الوصول إلى سيرفر الذكاء الاصطناعي حالياً.";
         setErrorMessage(friendlyErr);
         setAssistantState("error");
       }

@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { Pressable, ScrollView, Text, View } from "react-native";
+import React, { useEffect, useState } from "react";
+import { ActivityIndicator, Pressable, ScrollView, Text, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 
 import { AppHeader } from "@/components/ui/AppHeader";
@@ -7,24 +7,59 @@ import { useAppearance } from "@/store/appearanceStore";
 import { useDocuments } from "@/store/documentsStore";
 import { useToast } from "@/store/toastStore";
 import { palette } from "@/styles/theme";
-import { DOC_TYPE_LABELS } from "@/types/document";
+import { DOC_TYPE_LABELS, type Document } from "@/types/document";
+import { apiClient } from "@/lib/api/client";
 
-// Leads with the spoken summary (auto-play is a real-backend/TTS concern, out
-// of scope for this demo-data pass — the "plays automatically" note and
-// replay control are shown as designed either way), then structured fields,
-// then the "ask about this document" CTA into the doc-scoped AI assistant,
-// then share/delete with a spoken confirm step before delete
-// (SAHELHA_DESIGN_BRIEF.md §6.5).
 export default function DocumentDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { highContrast } = useAppearance();
-  const { getDocument, deleteDocument } = useDocuments();
+  const { getDocument, addDocument, deleteDocument } = useDocuments();
   const { showToast } = useToast();
   const c = palette(highContrast);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
 
-  const doc = getDocument(Number(id));
+  const numericId = Number(id);
+  const contextDoc = getDocument(numericId);
+  const [fetchedDoc, setFetchedDoc] = useState<Document | null>(null);
+  const [loadingDoc, setLoadingDoc] = useState(!contextDoc);
+
+  useEffect(() => {
+    if (!contextDoc && numericId) {
+      let isMounted = true;
+      (async () => {
+        try {
+          setLoadingDoc(true);
+          const { data } = await apiClient.get<Document>(`/api/documents/${numericId}`);
+          if (data && isMounted) {
+            setFetchedDoc(data);
+            addDocument(data);
+          }
+        } catch (e) {
+          console.warn("[DOCUMENT DETAIL] fetch failed for id", numericId, e);
+        } finally {
+          if (isMounted) setLoadingDoc(false);
+        }
+      })();
+      return () => { isMounted = false; };
+    }
+  }, [numericId, contextDoc, addDocument]);
+
+  const doc = contextDoc || fetchedDoc;
+
+  if (loadingDoc) {
+    return (
+      <View style={{ flex: 1, backgroundColor: c.pageBg }}>
+        <AppHeader title="مستند" showBack />
+        <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 24 }}>
+          <ActivityIndicator size="large" color={c.primaryBg} />
+          <Text style={{ marginTop: 12, fontFamily: "IBMPlexSansArabic_600SemiBold", fontSize: 16, color: c.secondary }}>
+            جارٍ تحميل تفاصيل المستند…
+          </Text>
+        </View>
+      </View>
+    );
+  }
 
   if (!doc) {
     return (
