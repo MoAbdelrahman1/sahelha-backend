@@ -152,6 +152,7 @@ DOCUMENT_COLUMN_MIGRATIONS: list[tuple[str, str]] = [
     ("amounts_json", "TEXT"),
     ("expiry_date", "TEXT"),
     ("entities_json", "TEXT"),
+    ("share_token", "TEXT"),
 ]
 
 CHAT_SESSION_COLUMN_MIGRATIONS: list[tuple[str, str]] = [
